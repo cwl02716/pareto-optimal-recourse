@@ -1,24 +1,37 @@
 import pandas as pd
 import numpy as np
+from sklearn.neighbors import KNeighborsClassifier
+from pathlib import Path
 
-dataset_path = "dataset/50Ktrain.csv"
-data = pd.read_csv(dataset_path)
-# data = pd.read_csv(dataset_path)
-print(data.shape)
-# 篩選資料集，若有缺失值則整row刪除
 
-keys_immutable = ["race", "sex", "native-country"]
+# ============================================================
+# preprocessing
+# ============================================================
 
-# choose data[0] as input feature, for all data points, if the immutable feature of data point isn't same as data[0], then drop it
-for key in keys_immutable:
-    data = data[data[key] == data.iloc[0][key]]
 
-# drop 'education' and 'fnlwgt' features
-data = data.drop(
-    ["education", "fnlwgt", "occupation", "race", "sex", "relationship"], axis=1
-)
+def load_dataframe(path: str = "dataset/50Ktrain.csv") -> pd.DataFrame:
+    df = pd.read_csv(Path(path))
+    df.drop(columns=["fnlwgt", "education"], inplace=True)
+    return df
 
-print(data.shape)
 
-data = data.reset_index(drop=True)
-print(data.head(3))
+def select_same_immutable(df: pd.DataFrame, index: int) -> pd.DataFrame:
+    df_col = df[["race", "sex", "native-country"]]
+    i = df_col.eq(df_col.iloc[index]).all(1)
+    return df_col[i]
+
+
+def train_knn_model(df: pd.DataFrame) -> KNeighborsClassifier: ...
+
+
+def predict_labels(model: KNeighborsClassifier, df: pd.DataFrame) -> np.ndarray: ...
+
+
+def preprocess(df: pd.DataFrame) -> pd.DataFrame:
+    "StandardScalar"
+    ...
+
+
+def reduction(df: pd.DataFrame, k: int = 100) -> pd.DataFrame:
+    """KMeans"""
+    ...
