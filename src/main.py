@@ -44,7 +44,7 @@ def select_same_immutable(
     return df[i].drop(columns=drops)
 
 
-def preprocess(df: pd.DataFrame) -> pd.DataFrame:
+def standardlize(df: pd.DataFrame) -> pd.DataFrame:
     X = df.drop(columns="50K")
     scaler = StandardScaler()
     X = scaler.fit_transform(X)
@@ -68,17 +68,18 @@ def reduction(df: pd.DataFrame, k: int) -> pd.DataFrame:
     return centers
 
 
-def main():
+def preprocess(
+    index: int, k: int
+) -> tuple[KNeighborsClassifier, pd.DataFrame, pd.DataFrame]:
     df = load_dataframe()
-    df = select_same_immutable(df, 0)
-    df = preprocess(df)
+    df = select_same_immutable(df, index)
+    df = standardlize(df)
     knn = train_knn_model(df)
-    centers = reduction(df, 100)
+    centers = reduction(df, k)
     y_pred = knn.predict(centers)
     centers["50K"] = y_pred
-    # TODO: from centers choose a point that belongs to a group in the KMeans model
-    return centers
+    return knn, df, centers
 
 
 if __name__ == "__main__":
-    print(main())
+    knn, df, centers = preprocess(0, 100)
