@@ -7,6 +7,8 @@ from sklearn.cluster import KMeans
 from sklearn.discriminant_analysis import StandardScaler
 from sklearn.neighbors import KNeighborsClassifier
 
+sklearn.set_config(transform_output="pandas")
+
 # ============================================================
 # preprocessing
 # ============================================================
@@ -42,6 +44,14 @@ def select_same_immutable(
     return df[i].drop(columns=drops)
 
 
+def preprocess(df: pd.DataFrame) -> pd.DataFrame:
+    X = df.drop(columns="50K")
+    scaler = StandardScaler()
+    X = scaler.fit_transform(X)
+    X["50K"] = df["50K"]
+    return X  # type: ignore
+
+
 def train_knn_model(df: pd.DataFrame) -> KNeighborsClassifier:
     X = df.drop(columns="50K")
     y = df["50K"]
@@ -50,36 +60,25 @@ def train_knn_model(df: pd.DataFrame) -> KNeighborsClassifier:
     return knn
 
 
-def preprocess(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
-    scaler = StandardScaler()
-    scaler.fit_transform(df[:-1], copy=False)
-    return df
-
-
 def reduction(df: pd.DataFrame, k: int) -> pd.DataFrame:
     kmeans = KMeans(k, random_state=0)
     X = df.drop(columns="50K")
     kmeans.fit(X)
     centers = pd.DataFrame(kmeans.cluster_centers_, columns=X.columns)
-    centers["50K"] = df["50K"]
     return centers
 
 
-def predict(df: pd.DataFrame, model: KNeighborsClassifier) -> pd.DataFrame:
-    X = df.drop(columns="50K")
-    return model.predict(X) # type: ignore
+def main():
+    df = load_dataframe()
+    df = select_same_immutable(df, 0)
+    df = preprocess(df)
+    knn = train_knn_model(df)
+    centers = reduction(df, 100)
+    y_pred = knn.predict(centers)
+    centers["50K"] = y_pred
+    # TODO: from centers choose a point that belongs to a group in the KMeans model
+    return centers
 
 
 if __name__ == "__main__":
-
-    def main() -> None:
-        df = load_dataframe()
-        df = select_same_immutable(df, 0)
-        knn = train_knn_model(df)
-        centers = reduction(df, 100)
-        res = predict(centers, knn)
-        print(res)
-
-    sklearn.config_context(transform_output="pandas")
-    main()
+    print(main())
