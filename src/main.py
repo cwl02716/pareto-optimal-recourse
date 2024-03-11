@@ -60,26 +60,27 @@ def train_knn_model(df: pd.DataFrame) -> KNeighborsClassifier:
     return knn
 
 
-def reduction(df: pd.DataFrame, k: int) -> pd.DataFrame:
+def reduction(df: pd.DataFrame, k: int) -> tuple[KMeans, pd.DataFrame]:
     kmeans = KMeans(k, random_state=0)
     X = df.drop(columns="50K")
     kmeans.fit(X)
     centers = pd.DataFrame(kmeans.cluster_centers_, columns=X.columns)
-    return centers
+    return kmeans, centers
 
 
-def preprocess(
-    index: int, k: int
-) -> tuple[KNeighborsClassifier, pd.DataFrame, pd.DataFrame]:
+def preprocess(index: int, k: int) -> tuple[pd.DataFrame, pd.DataFrame, int]:
     df = load_dataframe()
     df = select_same_immutable(df, index)
     df = standardlize(df)
     knn = train_knn_model(df)
-    centers = reduction(df, k)
+    kmeans, centers = reduction(df, k)
     y_pred = knn.predict(centers)
     centers["50K"] = y_pred
-    return knn, df, centers
+    target = df.drop(columns="50K").iloc[[index]]
+    i = kmeans.predict(target).item()
+    return df, centers, i
 
 
 if __name__ == "__main__":
-    knn, df, centers = preprocess(0, 100)
+    df, centers, index = preprocess(0, 100)
+    print(index)
