@@ -16,7 +16,13 @@ sklearn.set_config(transform_output="pandas")
 
 def load_dataframe(
     path: str = "dataset/50Ktrain.csv",
-    drops: list[Any] = ["fnlwgt", "education"],
+    drops: list[Any] = [
+        "fnlwgt",
+        "education",
+        "marital-status",
+        "relationship",
+        "occupation",
+    ],
 ) -> pd.DataFrame:
     df = pd.read_csv(Path(path))
     df.drop(columns=drops, inplace=True)
@@ -31,17 +37,10 @@ def select_same_immutable(
         "sex",
         "native-country",
     ],
-    drops: list[Any] = [
-        "race",
-        "sex",
-        "native-country",
-        "occupation",
-        "relationship",
-    ],
 ) -> pd.DataFrame:
     df_cols = df[immutables]
     i = df_cols.eq(df_cols.iloc[index]).all(1)
-    return df[i].drop(columns=drops)
+    return df[i].drop(columns=immutables)
 
 
 def standardlize(df: pd.DataFrame) -> pd.DataFrame:
