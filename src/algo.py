@@ -45,4 +45,11 @@ def cost(df: pd.DataFrame, i: int, j: int) -> tuple[float, float]:
     return time, payment
 
 
-def merge(i: int, j: int): ...
+def merge(
+    cost: tuple[float, float],
+    dists: list[list[tuple[float, float]]],
+    i: int,
+    j: int,
+) -> None:
+    u = dists[i]
+    v = dists[j]
