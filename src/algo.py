@@ -1,3 +1,5 @@
+import math
+from typing import Mapping
 import igraph as ig
 import numpy as np
 import pandas as pd
@@ -18,25 +20,29 @@ def adj_to_graph(A: csr_matrix) -> pd.DataFrame:
 
 
 def cost(df: pd.DataFrame, i: int, j: int) -> tuple[float, float]:
-    time = 0
-    payment = 0
-    # for age
-    if (df.loc[j, "age"] - df.loc[i, "age"]>= 0):
-        time.max(time, df.loc[j, "age"] - df.loc[i, "age"]) 
-   
-    # education
-    if (df.loc[j, "education-num"] - df.loc[i, "education-num"]>= 0):
-        time.max(time, df.loc[j, "education-num"] - df.loc[i, "education-num"])
+    time = 0.0
+    payment = 0.0
+    a: pd.Series[float] = df.loc[i]  # type: ignore
+    b: pd.Series[float] = df.loc[j]  # type: ignore
 
-    # hours-per-week and workclass
-    t = df.loc[j, "workclass"] - df.loc[i, "workclass"]
-    time.max(time, t) if t > 0 else time.max(time, 0)
-    p = df.loc[j, "hours-per-week"] - df.loc[i, "hours-per-week"]/t
-    # do sigmoid to p
-    payment += 1/(1+np.exp(-p))
+    # for age
+    time = max(time, b["age"] - a["age"])
+
+    # education
+    time = max(time, b["education"] - a["education"])
+
+    # workclass
+    time = max(time, b["workclass"] - a["workclass"])
+
+    # sigmoid(workclass : hours-per-week)
+    m = a["workclass"] / a["hours-per-week"] - b["workclass"] / b["hours-per-week"]
+    payment += 1.0 / (1.0 + math.exp(m))
 
     # gain and loss
-    payment += (df.loc[j, "capital-gain"] - df.loc[i, "capital-gain"]) + (df.loc[i, "capital-loss"] - df.loc[j, "capital-loss"])
+    payment += b["capital-gain"] - a["capital-gain"]
+    payment -= b["capital-loss"] - a["capital-loss"]
+
+    return time, payment
 
 
 def merge(i: int, j: int): ...

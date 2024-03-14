@@ -6,6 +6,7 @@ import sklearn
 from sklearn.cluster import KMeans
 from sklearn.discriminant_analysis import StandardScaler
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import MinMaxScaler
 
 sklearn.set_config(transform_output="pandas")
 
@@ -43,9 +44,9 @@ def select_same_immutable(
     return df[i].drop(columns=immutables)
 
 
-def standardlize(df: pd.DataFrame) -> pd.DataFrame:
+def minmax(df: pd.DataFrame) -> pd.DataFrame:
     X = df.drop(columns="50K")
-    scaler = StandardScaler()
+    scaler = MinMaxScaler()
     X = scaler.fit_transform(X)
     X["50K"] = df["50K"]
     return X  # type: ignore
@@ -70,7 +71,7 @@ def reduction(df: pd.DataFrame, k: int) -> tuple[KMeans, pd.DataFrame]:
 def preprocess(index: int, k: int) -> tuple[pd.DataFrame, pd.DataFrame, int]:
     df = load_dataframe()
     df = select_same_immutable(df, index)
-    df = standardlize(df)
+    df = minmax(df)
     knn = train_knn_model(df)
     kmeans, centers = reduction(df, k)
     y_pred = knn.predict(centers)
