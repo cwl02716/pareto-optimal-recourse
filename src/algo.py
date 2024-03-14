@@ -14,7 +14,7 @@ def make_knn_adj(df: pd.DataFrame, k: int) -> csr_matrix:
     return A
 
 
-def adj_to_graph(A: csr_matrix) -> pd.DataFrame:
+def adj_to_graph(A: csr_matrix) -> ig.Graph:
     graph = ig.Graph.Adjacency(A.astype(np.int_))
     return graph
 
@@ -46,10 +46,21 @@ def cost(df: pd.DataFrame, i: int, j: int) -> tuple[float, float]:
 
 
 def merge(
-    cost: tuple[float, float],
     dists: list[list[tuple[float, float]]],
     i: int,
     j: int,
+    w: tuple[float, float],
 ) -> None:
     u = dists[i]
     v = dists[j]
+
+
+def bellman_ford(graph: ig.Graph, source: int) -> list[list[tuple[float, float]]]:
+    dists = [[] for _ in range(graph.vcount())]
+    dists[source].append((0.0, 0.0))
+    # use s-u to u-v to merge s-v
+    for _ in range(graph.vcount() - 1):
+        for e in graph.es:
+            u, v = e.tuple
+            merge(dists, u, v, e["cost"])
+    return dists
