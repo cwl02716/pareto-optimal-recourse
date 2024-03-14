@@ -55,7 +55,15 @@ def merge(
     v = dists[j]
 
 
-def bellman_ford(graph: ig.Graph, source: int) -> list[list[tuple[float, float]]]:
+def set_cost(graph: ig.Graph, df: pd.DataFrame) -> None:
+    for e in graph.es:
+        u, v = e.tuple
+        e["cost"] = cost(df, u, v)
+
+
+def multicost_shortest_path(
+    graph: ig.Graph, source: int
+) -> list[list[tuple[float, float]]]:
     dists = [[] for _ in range(graph.vcount())]
     dists[source].append((0.0, 0.0))
     # use s-u to u-v to merge s-v
@@ -63,4 +71,12 @@ def bellman_ford(graph: ig.Graph, source: int) -> list[list[tuple[float, float]]
         for e in graph.es:
             u, v = e.tuple
             merge(dists, u, v, e["cost"])
+    return dists
+
+
+def recourse(df: pd.DataFrame, source: int) -> list[list[tuple[float, float]]]:
+    adj = make_knn_adj(df, 5)
+    graph = adj_to_graph(adj)
+    set_cost(graph, df)
+    dists = multicost_shortest_path(graph, source)
     return dists
