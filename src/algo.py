@@ -29,7 +29,7 @@ def cost(df: pd.DataFrame, i: int, j: int) -> tuple[float, float]:
     time = max(time, b["age"] - a["age"])
 
     # education
-    time = max(time, b["education"] - a["education"])
+    time = max(time, b["education-num"] - a["education-num"])
 
     # workclass
     time = max(time, b["workclass"] - a["workclass"])

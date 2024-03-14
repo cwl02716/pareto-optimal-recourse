@@ -64,8 +64,8 @@ def reduction(df: pd.DataFrame, k: int) -> tuple[KMeans, pd.DataFrame]:
     kmeans = KMeans(k, random_state=0)
     X = df.drop(columns="50K")
     kmeans.fit(X)
-    centers = pd.DataFrame(kmeans.cluster_centers_, columns=X.columns)
-    return kmeans, centers
+    df_small = pd.DataFrame(kmeans.cluster_centers_, columns=X.columns)
+    return kmeans, df_small
 
 
 def preprocess(index: int, k: int) -> tuple[pd.DataFrame, pd.DataFrame, int]:
@@ -73,14 +73,14 @@ def preprocess(index: int, k: int) -> tuple[pd.DataFrame, pd.DataFrame, int]:
     df = select_same_immutable(df, index)
     df = minmax(df)
     knn = train_knn_model(df)
-    kmeans, centers = reduction(df, k)
-    y_pred = knn.predict(centers)
-    centers["50K"] = y_pred
+    kmeans, df_small = reduction(df, k)
+    y_pred = knn.predict(df_small)
+    df_small["50K"] = y_pred
     target = df.drop(columns="50K").iloc[[index]]
     i = kmeans.predict(target).item()
-    return df, centers, i
+    return df, df_small, i
 
 
 if __name__ == "__main__":
-    df, centers, index = preprocess(0, 100)
+    df, df_small, index = preprocess(0, 100)
     print(index)
