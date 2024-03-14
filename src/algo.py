@@ -54,6 +54,9 @@ def merge(
     u = dists[i]
     v = dists[j]
 
+    for i in range(len(u)):
+        v.append((u[i][0] + w[0], u[i][1] + w[1]))
+
 
 def set_cost(graph: ig.Graph, df: pd.DataFrame) -> None:
     for e in graph.es:
