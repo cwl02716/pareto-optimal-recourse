@@ -1,3 +1,7 @@
 numpy==1.26.0
+pandas==2.2.0
 igraph==1.7.0
 matplotlib==3.8.2
+seaborn==0.13.2
+scikit-learn==1.4.0
+spicy==1.12.0
