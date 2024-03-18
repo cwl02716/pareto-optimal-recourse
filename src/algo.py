@@ -47,36 +47,36 @@ def cost(df: pd.DataFrame, i: int, j: int) -> tuple[float, float]:
 
 
 def merge(
-    dists: list[list[tuple[float, float]]],
+    parent_dists: list[list[tuple[int, float, float]]],
     i: int,
     j: int,
     w: tuple[float, float],
     *,
     limit: int,
 ) -> None:
-    u = dists[i]
-    v = dists[j]
+    u = parent_dists[i]
+    v = parent_dists[j]
 
-    new_v = [(x[0] + w[0], x[1] + w[1]) for x in u]
+    new_v = [(i, x[0] + w[0], x[1] + w[1]) for x in u]
     v += new_v
 
-    dists[j] = dominant_points(v, limit=limit)
+    parent_dists[j] = dominant_points_2d(v, limit=limit)
 
 
-def dominant_points(
-    points: list[tuple[float, float]],
+def dominant_points_2d(
+    points: list[tuple[int, float, float]],
     *,
     limit: int,
-) -> list[tuple[float, float]]:
-    points.sort()
+) -> list[tuple[int, float, float]]:
+    points.sort(key=lambda x: x[1:3])
 
-    res: list[tuple[float, float]] = []
+    res: list[tuple[int, float, float]] = []
 
     y_min = float("inf")
 
-    for x, y in points:
+    for p, x, y in points:
         if y < y_min:
-            res.append((x, y))
+            res.append((p, x, y))
             y_min = y
         if len(res) >= limit:
             break
@@ -98,16 +98,18 @@ def multicost_shortest_path(
     source: int,
     *,
     limit: int,
-) -> list[list[tuple[float, float]]]:
-    dists = [[] for _ in range(graph.vcount())]
-    dists[source].append((0.0, 0.0))
+) -> list[list[tuple[int, float, float]]]:
+    parent_dists: list[list[tuple[int, float, float]]] = [
+        [] for _ in range(graph.vcount())
+    ]
+    parent_dists[source].append((source, 0.0, 0.0))
 
     # use s-u to u-v to merge s-v
     for _ in range(graph.vcount() - 1):
         for e in graph.es:
             u, v = e.tuple
-            merge(dists, u, v, e["cost"], limit=limit)
-    return dists
+            merge(parent_dists, u, v, e["cost"], limit=limit)
+    return parent_dists
 
 
 def recourse(
@@ -116,9 +118,9 @@ def recourse(
     source: int,
     *,
     limit: int,
-) -> tuple[ig.Graph, list[list[tuple[float, float]]]]:
+) -> tuple[ig.Graph, list[list[tuple[int, float, float]]]]:
     adj = make_knn_adj(df, k)
     graph = adj_to_graph(adj)
     set_cost(graph, df)
-    dists = multicost_shortest_path(graph, source, limit=limit)
-    return graph, dists
+    parent_dists = multicost_shortest_path(graph, source, limit=limit)
+    return graph, parent_dists
