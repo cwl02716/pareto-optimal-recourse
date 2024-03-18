@@ -2,10 +2,13 @@ import math
 from warnings import warn
 
 import igraph as ig
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.sparse import csr_matrix
 from sklearn.neighbors import kneighbors_graph
+
+from sklearn.decomposition import PCA
 
 
 def make_knn_adj(df: pd.DataFrame, k: int) -> csr_matrix:
@@ -18,6 +21,15 @@ def make_knn_adj(df: pd.DataFrame, k: int) -> csr_matrix:
 def adj_to_graph(A: csr_matrix) -> ig.Graph:
     graph = ig.Graph.Adjacency(A.astype(np.int_))
     return graph
+
+
+def add_terminate_point(graph: ig.Graph, df: pd.DataFrame) -> list[int]:
+    vertices = np.nonzero(df["50K"] == 1)[0].tolist()
+    graph.add_vertex("t")
+    graph.add_edges(
+        [(v, "t") for v in vertices], {"cost": [(0.0, 0.0)] * len(vertices)}
+    )
+    return vertices
 
 
 def cost(df: pd.DataFrame, i: int, j: int) -> tuple[float, float]:
@@ -46,6 +58,12 @@ def cost(df: pd.DataFrame, i: int, j: int) -> tuple[float, float]:
     return time, payment
 
 
+def set_cost(graph: ig.Graph, df: pd.DataFrame) -> None:
+    for e in graph.es:
+        u, v = e.tuple
+        e["cost"] = cost(df, u, v)
+
+
 def merge(
     parent_dists: list[list[tuple[int, float, float]]],
     i: int,
@@ -56,6 +74,7 @@ def merge(
 ) -> None:
     u = parent_dists[i]
     v = parent_dists[j]
+    assert isinstance(w, tuple), "not tuple"
 
     new_v = [(i, x[0] + w[0], x[1] + w[1]) for x in u]
     v += new_v
@@ -87,12 +106,6 @@ def dominant_points_2d(
     return res
 
 
-def set_cost(graph: ig.Graph, df: pd.DataFrame) -> None:
-    for e in graph.es:
-        u, v = e.tuple
-        e["cost"] = cost(df, u, v)
-
-
 def multicost_shortest_path(
     graph: ig.Graph,
     source: int,
@@ -118,9 +131,35 @@ def recourse(
     source: int,
     *,
     limit: int,
-) -> tuple[ig.Graph, list[list[tuple[int, float, float]]]]:
+) -> tuple[ig.Graph, list[int], list[list[tuple[int, float, float]]]]:
     adj = make_knn_adj(df, k)
     graph = adj_to_graph(adj)
     set_cost(graph, df)
+    ts = add_terminate_point(graph, df)
     parent_dists = multicost_shortest_path(graph, source, limit=limit)
-    return graph, parent_dists
+    return graph, ts, parent_dists
+
+
+def get_layout(df: pd.DataFrame) -> list[tuple[int, int]]:
+    pca = PCA(2)
+    coord: pd.DataFrame = pca.fit_transform(df.drop(columns=["50K"]))  # type: ignore
+    return coord.to_numpy().tolist()
+
+
+def show_graph(
+    graph: ig.Graph, coord: list[tuple[int, int]], source: int, ts: list[int]
+):
+    fig, ax = plt.subplots(figsize=(15, 15), layout="tight")
+    ig.plot(
+        graph,
+        ax,
+        layout=coord,
+        edge_arrow_size=2,
+        vertex_label=graph.vs.indices,
+        vertex_color=[
+            "red" if i == source else "blue" if i in ts else "lightblue"
+            for i in range(graph.vcount())
+        ],
+        edge_label=[f"{a:.2f},{b:.2f}" for a, b in graph.es["cost"]],
+    )
+    plt.show()
