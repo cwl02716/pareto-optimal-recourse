@@ -1,5 +1,4 @@
 import math
-from typing import Mapping
 import igraph as ig
 import numpy as np
 import pandas as pd
@@ -46,16 +45,21 @@ def cost(df: pd.DataFrame, i: int, j: int) -> tuple[float, float]:
 
 
 def merge(
-    dists: list[list[tuple[float, float]]],
+    dists: list[set[tuple[float, float]]],
     i: int,
     j: int,
     w: tuple[float, float],
+    *,
+    limit: int = 100000,
 ) -> None:
     u = dists[i]
     v = dists[j]
 
-    for i in range(len(u)):
-        v.append((u[i][0] + w[0], u[i][1] + w[1]))
+    new_v = {(x[0] + w[0], x[1] + w[1]) for x in u}
+    v.update(new_v)
+
+    if len(v) > limit:
+        raise ValueError("too many paths")
 
 
 def set_cost(graph: ig.Graph, df: pd.DataFrame) -> None:
@@ -65,23 +69,31 @@ def set_cost(graph: ig.Graph, df: pd.DataFrame) -> None:
 
 
 def multicost_shortest_path(
-    graph: ig.Graph, source: int
-) -> list[list[tuple[float, float]]]:
-    dists = [[] for _ in range(graph.vcount())]
-    dists[source].append((0.0, 0.0))
+    graph: ig.Graph,
+    source: int,
+    *,
+    limit: int = 100000,
+) -> list[set[tuple[float, float]]]:
+    dists = [set() for _ in range(graph.vcount())]
+    dists[source].add((0.0, 0.0))
     # use s-u to u-v to merge s-v
     for _ in range(graph.vcount() - 1):
         for e in graph.es:
             u, v = e.tuple
-            merge(dists, u, v, e["cost"])
+            merge(dists, u, v, e["cost"], limit=limit)
     return dists
 
 
-def recourse(df: pd.DataFrame, source: int) -> list[list[tuple[float, float]]]:
+def recourse(
+    df: pd.DataFrame,
+    source: int,
+    *,
+    limit: int = 100000,
+) -> list[set[tuple[float, float]]]:
     adj = make_knn_adj(df, 5)
     graph = adj_to_graph(adj)
     set_cost(graph, df)
-    dists = multicost_shortest_path(graph, source)
+    dists = multicost_shortest_path(graph, source, limit=limit)
     return dists
 
 
