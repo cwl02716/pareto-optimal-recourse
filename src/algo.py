@@ -104,7 +104,7 @@ def dominant_points(points: list[tuple[float, float]]) -> list[tuple[float, floa
     for point in points:
         #  A point (x1, y1) is dominated by another point (x2, y2) if x1 < x2 and y1 < y2.
         is_dominated = any(
-            point[0] < x and point[1] < y for x, y in dominant_points_list
+            point[0] > x and point[1] > y for x, y in dominant_points_list
         )
 
         if not is_dominated:
