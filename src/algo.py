@@ -1,4 +1,5 @@
 import math
+from warnings import warn
 import igraph as ig
 import numpy as np
 import pandas as pd
@@ -45,21 +46,44 @@ def cost(df: pd.DataFrame, i: int, j: int) -> tuple[float, float]:
 
 
 def merge(
-    dists: list[set[tuple[float, float]]],
+    dists: list[list[tuple[float, float]]],
     i: int,
     j: int,
     w: tuple[float, float],
     *,
-    limit: int = 100000,
+    limit: int,
 ) -> None:
     u = dists[i]
     v = dists[j]
 
-    new_v = {(x[0] + w[0], x[1] + w[1]) for x in u}
-    v.update(new_v)
+    new_v = [(x[0] + w[0], x[1] + w[1]) for x in u]
+    v += new_v
 
-    if len(v) > limit:
-        raise ValueError("too many paths")
+    dists[j] = dominant_points(v, limit=limit)
+
+
+def dominant_points(
+    points: list[tuple[float, float]],
+    *,
+    limit: int,
+) -> list[tuple[float, float]]:
+    points.sort()
+
+    res: list[tuple[float, float]] = []
+
+    y_min = float("inf")
+
+    for x, y in points:
+        if y < y_min:
+            res.append((x, y))
+            y_min = y
+        if len(res) >= limit:
+            break
+
+    if len(res) == limit:
+        warn(f"Reach limit {limit}!")
+
+    return res
 
 
 def set_cost(graph: ig.Graph, df: pd.DataFrame) -> None:
@@ -72,10 +96,11 @@ def multicost_shortest_path(
     graph: ig.Graph,
     source: int,
     *,
-    limit: int = 100000,
-) -> list[set[tuple[float, float]]]:
-    dists = [set() for _ in range(graph.vcount())]
-    dists[source].add((0.0, 0.0))
+    limit: int,
+) -> list[list[tuple[float, float]]]:
+    dists = [[] for _ in range(graph.vcount())]
+    dists[source].append((0.0, 0.0))
+
     # use s-u to u-v to merge s-v
     for _ in range(graph.vcount() - 1):
         for e in graph.es:
@@ -88,29 +113,10 @@ def recourse(
     df: pd.DataFrame,
     source: int,
     *,
-    limit: int = 100000,
-) -> list[set[tuple[float, float]]]:
+    limit: int,
+) -> list[list[tuple[float, float]]]:
     adj = make_knn_adj(df, 5)
     graph = adj_to_graph(adj)
     set_cost(graph, df)
     dists = multicost_shortest_path(graph, source, limit=limit)
     return dists
-
-
-def dominant_points(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
-    points.sort(key=lambda point: (-point[1], point[0]))
-    dominant_points_list: list[tuple[float, float]] = []
-
-    for point in points:
-        #  A point (x1, y1) is dominated by another point (x2, y2) if x1 < x2 and y1 < y2.
-        is_dominated = any(
-            point[0] > x and point[1] > y for x, y in dominant_points_list
-        )
-
-        if not is_dominated:
-            dominant_points_list.append(point)
-
-            if len(dominant_points_list) == 5:
-                break
-
-    return dominant_points_list

@@ -4,7 +4,6 @@ from typing import Any
 import pandas as pd
 import sklearn
 from sklearn.cluster import KMeans
-from sklearn.discriminant_analysis import StandardScaler
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import MinMaxScaler
 
