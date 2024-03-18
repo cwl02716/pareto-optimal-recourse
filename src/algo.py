@@ -83,3 +83,22 @@ def recourse(df: pd.DataFrame, source: int) -> list[list[tuple[float, float]]]:
     set_cost(graph, df)
     dists = multicost_shortest_path(graph, source)
     return dists
+
+
+def dominant_points(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    points.sort(key=lambda point: (-point[1], point[0]))
+    dominant_points_list: list[tuple[float, float]] = []
+
+    for point in points:
+        #  A point (x1, y1) is dominated by another point (x2, y2) if x1 < x2 and y1 < y2.
+        is_dominated = any(
+            point[0] < x and point[1] < y for x, y in dominant_points_list
+        )
+
+        if not is_dominated:
+            dominant_points_list.append(point)
+
+            if len(dominant_points_list) == 5:
+                break
+
+    return dominant_points_list
