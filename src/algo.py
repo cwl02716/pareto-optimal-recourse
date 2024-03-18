@@ -1,5 +1,6 @@
 import math
 from warnings import warn
+
 import igraph as ig
 import numpy as np
 import pandas as pd
@@ -111,12 +112,13 @@ def multicost_shortest_path(
 
 def recourse(
     df: pd.DataFrame,
+    k: int,
     source: int,
     *,
     limit: int,
-) -> list[list[tuple[float, float]]]:
-    adj = make_knn_adj(df, 5)
+) -> tuple[ig.Graph, list[list[tuple[float, float]]]]:
+    adj = make_knn_adj(df, k)
     graph = adj_to_graph(adj)
     set_cost(graph, df)
     dists = multicost_shortest_path(graph, source, limit=limit)
-    return dists
+    return graph, dists
