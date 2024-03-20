@@ -1,4 +1,3 @@
-import math
 from warnings import warn
 
 import igraph as ig
@@ -6,9 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.sparse import csr_matrix
-from sklearn.neighbors import kneighbors_graph
-
 from sklearn.decomposition import PCA
+from sklearn.neighbors import kneighbors_graph
 
 
 def make_knn_adj(df: pd.DataFrame, k: int) -> csr_matrix:
@@ -48,8 +46,11 @@ def cost(df: pd.DataFrame, i: int, j: int) -> tuple[float, float]:
     time = max(time, b["workclass"] - a["workclass"])
 
     # sigmoid(workclass : hours-per-week)
-    m = a["workclass"] / a["hours-per-week"] - b["workclass"] / b["hours-per-week"]
-    payment += 1.0 / (1.0 + math.exp(m))
+    eps = 1e-3
+    m = a["workclass"] / (a["hours-per-week"] + eps) - b["workclass"] / (
+        b["hours-per-week"] + eps
+    )
+    payment += 1.0 / (1.0 + np.exp(m))
 
     # gain and loss
     payment += b["capital-gain"] - a["capital-gain"]
