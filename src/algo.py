@@ -141,6 +141,31 @@ def recourse(
     return graph, ts, parent_dists
 
 
+def backtracking(
+    graph: ig.Graph,
+    dists: list[list[tuple[int, float, float]]],
+    s: int,
+    t: int = -1,
+) -> list[list[int]]:
+    paths = []
+    v = t
+    dist_v = dists[v]
+    for u, sv1, sv2 in dist_v:
+        path = []
+        while s != v:
+            dist_u = dists[u]
+            path.append(u)
+
+            uv1, uv2 = graph.get_eid(u, v)["cost"]
+
+            for i, si1, si2 in dist_u:
+                if si1 + uv1 == sv1 and si2 + uv2 == sv2:
+                    u, sv1, sv2 = dist_u[i]
+                    break
+        paths.append(path)
+    return paths
+
+
 def get_layout(df: pd.DataFrame) -> list[tuple[int, int]]:
     pca = PCA(2)
     coord: pd.DataFrame = pca.fit_transform(df.drop(columns=["50K"]))  # type: ignore
