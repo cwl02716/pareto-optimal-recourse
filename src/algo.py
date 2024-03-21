@@ -156,12 +156,15 @@ def backtracking(
             dist_u = dists[u]
             path.append(u)
 
-            uv1, uv2 = graph.get_eid(u, v)["cost"]
+            eid = graph.get_eid(u, v)
+            uv1, uv2 = graph.es[eid]["cost"]
 
             for i, si1, si2 in dist_u:
                 if si1 + uv1 == sv1 and si2 + uv2 == sv2:
                     u, sv1, sv2 = dist_u[i]
                     break
+            else:
+                raise ValueError("No path found!")
         paths.append(path)
     return paths
 
