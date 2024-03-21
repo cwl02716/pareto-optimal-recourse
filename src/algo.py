@@ -1,4 +1,5 @@
 import math
+from pprint import pprint
 from warnings import warn
 
 import igraph as ig
@@ -67,21 +68,21 @@ def set_cost(graph: ig.Graph, df: pd.DataFrame) -> None:
 
 
 def merge(
-    parent_dists: list[list[tuple[int, float, float]]],
-    i: int,
-    j: int,
+    dists: list[list[tuple[int, float, float]]],
+    u: int,
+    v: int,
     w: tuple[float, float],
     *,
     limit: int,
 ) -> None:
-    u = parent_dists[i]
-    v = parent_dists[j]
+    dist_u = dists[u]
+    dist_v = dists[v]
     assert isinstance(w, tuple), "not tuple"
 
-    new_v = [(i, x[0] + w[0], x[1] + w[1]) for x in u]
-    v += new_v
+    new_v = [(u, child[1] + w[0], child[2] + w[1]) for child in dist_u]
+    dist_v += new_v
 
-    parent_dists[j] = dominant_points_2d(v, limit=limit)
+    dists[v] = dominant_points_2d(dist_v, limit=limit)
 
 
 def dominant_points_2d(
@@ -113,6 +114,7 @@ def multicost_shortest_path(
     source: int,
     *,
     limit: int,
+    verbose: bool = False,
 ) -> list[list[tuple[int, float, float]]]:
     parent_dists: list[list[tuple[int, float, float]]] = [
         [] for _ in range(graph.vcount())
@@ -124,6 +126,8 @@ def multicost_shortest_path(
         for e in graph.es:
             u, v = e.tuple
             merge(parent_dists, u, v, e["cost"], limit=limit)
+        if verbose:
+            pprint(parent_dists)
     return parent_dists
 
 
@@ -133,12 +137,13 @@ def recourse(
     source: int,
     *,
     limit: int,
+    verbose: bool = False,
 ) -> tuple[ig.Graph, list[int], list[list[tuple[int, float, float]]]]:
     adj = make_knn_adj(df, k)
     graph = adj_to_graph(adj)
     set_cost(graph, df)
     ts = add_terminate_point(graph, df)
-    parent_dists = multicost_shortest_path(graph, source, limit=limit)
+    parent_dists = multicost_shortest_path(graph, source, limit=limit, verbose=verbose)
     return graph, ts, parent_dists
 
 
@@ -179,12 +184,12 @@ def get_layout(df: pd.DataFrame) -> list[tuple[int, int]]:
 def show_graph(
     graph: ig.Graph, coord: list[tuple[int, int]], source: int, ts: list[int]
 ):
-    fig, ax = plt.subplots(figsize=(15, 15), layout="tight")
+    fig, ax = plt.subplots(figsize=(12, 12), layout="tight")
     ig.plot(
         graph,
         ax,
         layout=coord,
-        edge_arrow_size=2,
+        # edge_arrow_size=2,
         vertex_label=graph.vs.indices,
         vertex_color=[
             "red" if i == source else "blue" if i in ts else "lightblue"
