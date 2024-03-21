@@ -127,7 +127,7 @@ def multicost_shortest_path(
             u, v = e.tuple
             merge(parent_dists, u, v, e["cost"], limit=limit)
         if verbose:
-            pprint(parent_dists)
+            pprint(parent_dists, indent=4)
     return parent_dists
 
 
@@ -154,10 +154,9 @@ def backtracking(
     t: int,
 ) -> list[list[int]]:
     paths = []
-    v = t
-    dist_v = dists[v]
-    for u, sv1, sv2 in dist_v:
+    for u, sv1, sv2 in dists[t]:
         path = []
+        v = t
         while s != v:
             dist_u = dists[u]
             path.append(u)
@@ -167,7 +166,8 @@ def backtracking(
 
             for i, si1, si2 in dist_u:
                 if math.isclose(si1 + uv1, sv1) and math.isclose(si2 + uv2, sv2):
-                    u, sv1, sv2 = dist_u[i]
+                    v = u
+                    u, sv1, sv2 = i, si1, si2
                     break
             else:
                 raise ValueError("No path found!")
