@@ -1,3 +1,4 @@
+import math
 from warnings import warn
 
 import igraph as ig
@@ -145,7 +146,7 @@ def backtracking(
     graph: ig.Graph,
     dists: list[list[tuple[int, float, float]]],
     s: int,
-    t: int = -1,
+    t: int,
 ) -> list[list[int]]:
     paths = []
     v = t
@@ -160,7 +161,7 @@ def backtracking(
             uv1, uv2 = graph.es[eid]["cost"]
 
             for i, si1, si2 in dist_u:
-                if si1 + uv1 == sv1 and si2 + uv2 == sv2:
+                if math.isclose(si1 + uv1, sv1) and math.isclose(si2 + uv2, sv2):
                     u, sv1, sv2 = dist_u[i]
                     break
             else:
