@@ -100,11 +100,12 @@ def dominant_points_2d(
         if y < y_min:
             res.append((p, x, y))
             y_min = y
-        if len(res) >= limit:
-            break
 
-    if len(res) == limit:
-        warn(f"Reach limit {limit}!")
+    size = len(res)
+    if size > limit:
+        warn(f"Exceed limit {size}!")
+        step = (size - 1) / (limit - 1)
+        res = [res[round(i * step)] for i in range(limit)]
 
     return res
 
