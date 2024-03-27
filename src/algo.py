@@ -1,4 +1,5 @@
 import math
+from itertools import product
 from pprint import pprint
 from warnings import warn
 
@@ -27,12 +28,12 @@ def add_terminate_point(graph: ig.Graph, df: pd.DataFrame) -> list[int]:
     vertices = np.nonzero(df["50K"] == 1)[0].tolist()
     graph.add_vertex("t")
     graph.add_edges(
-        [(v, "t") for v in vertices], {"cost": [(0.0, 0.0)] * len(vertices)}
+        [(v, "t") for v in vertices], {"costs": [[(0.0, 0.0)] for _ in vertices]}
     )
     return vertices
 
 
-def cost(df: pd.DataFrame, i: int, j: int) -> tuple[float, float]:
+def costs(df: pd.DataFrame, i: int, j: int) -> list[tuple[float, float]]:
     time = 0.0
     payment = 0.0
     a: pd.Series[float] = df.loc[i]  # type: ignore
@@ -44,61 +45,59 @@ def cost(df: pd.DataFrame, i: int, j: int) -> tuple[float, float]:
     # education
     time = max(time, b["education-num"] - a["education-num"])
 
-    # workclass 
+    # workclass
     time = max(time, abs(b["workclass"] - a["workclass"]))
 
     # sigmoid(workclass : hours-per-week)
     eps = 1e-3
-    m = a["workclass"] / (a["hours-per-week"] + eps) - b["workclass"] / (
-        b["hours-per-week"] + eps
-    )
-    payment += 1.0 / (1.0 + 1.44*np.exp(m))  # add bias
+    m = a["workclass"] / (a["hours-per-week"] + eps)
+    m -= b["workclass"] / (b["hours-per-week"] + eps)
+    payment += 1.0 / (1.0 + 1.44 * np.exp(m))  # add bias
 
     # gain and loss
     payment += b["capital-gain"] - a["capital-gain"]
     payment -= b["capital-loss"] - a["capital-loss"]
 
-    return time, payment
+    return [(time / 2, payment * 2), (time, payment), (time * 2, payment / 2)]
 
 
-def set_cost(graph: ig.Graph, df: pd.DataFrame) -> None:
+def set_costs(graph: ig.Graph, df: pd.DataFrame) -> None:
     for e in graph.es:
         u, v = e.tuple
-        e["cost"] = cost(df, u, v)
+        e["costs"] = costs(df, u, v)
 
 
 def merge(
-    dists: list[list[tuple[int, float, float]]],
+    dists: list[list[tuple[tuple[int, int], tuple[float, float]]]],
     u: int,
     v: int,
-    w: tuple[float, float],
+    costs: list[tuple[float, float]],
     *,
     limit: int,
 ) -> None:
     dist_u = dists[u]
     dist_v = dists[v]
-    assert isinstance(w, tuple), "not tuple"
 
-    new_v = [(u, child[1] + w[0], child[2] + w[1]) for child in dist_u]
-    dist_v += new_v
+    for (_, cost_u), (i, cost_w) in product(dist_u, enumerate(costs)):
+        dist_v += [((u, i), (cost_u[0] + cost_w[0], cost_u[1] + cost_w[1]))]
 
     dists[v] = dominant_points_2d(dist_v, limit=limit)
 
 
 def dominant_points_2d(
-    points: list[tuple[int, float, float]],
+    points: list[tuple[tuple[int, int], tuple[float, float]]],
     *,
     limit: int,
-) -> list[tuple[int, float, float]]:
-    points.sort(key=lambda x: x[1:3])
+) -> list[tuple[tuple[int, int], tuple[float, float]]]:
+    points.sort(key=lambda x: x[1])
 
-    res: list[tuple[int, float, float]] = []
+    res: list[tuple[tuple[int, int], tuple[float, float]]] = []
 
     y_min = float("inf")
 
-    for p, x, y in points:
+    for p, (x, y) in points:
         if y < y_min:
-            res.append((p, x, y))
+            res.append((p, (x, y)))
             y_min = y
 
     size = len(res)
@@ -116,17 +115,18 @@ def multicost_shortest_path(
     *,
     limit: int,
     verbose: bool = False,
-) -> list[list[tuple[int, float, float]]]:
-    parent_dists: list[list[tuple[int, float, float]]] = [
+) -> list[list[tuple[tuple[int, int], tuple[float, float]]]]:
+    
+    parent_dists: list[list[tuple[tuple[int, int], tuple[float, float]]]] = [
         [] for _ in range(graph.vcount())
     ]
-    parent_dists[source].append((source, 0.0, 0.0))
+    parent_dists[source].append(((source, 0), (0.0, 0.0)))
 
     # use s-u to u-v to merge s-v
     for _ in range(graph.vcount() - 1):
         for e in graph.es:
             u, v = e.tuple
-            merge(parent_dists, u, v, e["cost"], limit=limit)
+            merge(parent_dists, u, v, e["costs"], limit=limit)
         if verbose:
             pprint(parent_dists, indent=4)
     return parent_dists
@@ -139,10 +139,10 @@ def recourse(
     *,
     limit: int,
     verbose: bool = False,
-) -> tuple[ig.Graph, list[int], list[list[tuple[int, float, float]]]]:
+) -> tuple[ig.Graph, list[int], list[list[tuple[tuple[int, int], tuple[float, float]]]]]:
     adj = make_knn_adj(df, k)
     graph = adj_to_graph(adj)
-    set_cost(graph, df)
+    set_costs(graph, df)
     ts = add_terminate_point(graph, df)
     parent_dists = multicost_shortest_path(graph, source, limit=limit, verbose=verbose)
     return graph, ts, parent_dists
@@ -150,12 +150,12 @@ def recourse(
 
 def backtracking(
     graph: ig.Graph,
-    dists: list[list[tuple[int, float, float]]],
+    dists: list[list[tuple[tuple[int, int], tuple[float, float]]]],
     s: int,
     t: int,
 ) -> list[list[int]]:
     paths = []
-    for u, sv1, sv2 in dists[t]:
+    for (u, w), (sv1, sv2) in dists[t]:
         path = []
         v = t
         while s != v:
@@ -163,12 +163,14 @@ def backtracking(
             path.append(u)
 
             eid = graph.get_eid(u, v)
-            uv1, uv2 = graph.es[eid]["cost"]
+            uv1, uv2 = graph.es[eid]["costs"][w]
 
-            for i, si1, si2 in dist_u:
+            for (i, j), (si1, si2) in dist_u:
+                
                 if math.isclose(si1 + uv1, sv1) and math.isclose(si2 + uv2, sv2):
                     v = u
-                    u, sv1, sv2 = i, si1, si2
+                    u, w = i, j
+                    sv1, sv2 = si1, si2
                     break
             else:
                 raise ValueError("No path found!")
@@ -196,6 +198,6 @@ def show_graph(
             "red" if i == source else "blue" if i in ts else "lightblue"
             for i in range(graph.vcount())
         ],
-        edge_label=[f"{a:.2f},{b:.2f}" for a, b in graph.es["cost"]],
+        edge_label=[f"{a:.2f},{b:.2f}" for (a, b), *_ in graph.es["costs"]],
     )
     plt.show()
