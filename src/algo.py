@@ -89,7 +89,7 @@ def costs(df: pd.DataFrame, i: int, j: int) -> list[tuple[float, float]]:
     temp4[1] = payment - temp4[1]
 
 
-    return [(time / 2, payment * 2), (time, payment), (time * 2, payment / 2)]
+    return [tuple(temp1), tuple(temp2), tuple(temp3), tuple(temp4)] # type: ignore
 
 
 def set_costs(graph: ig.Graph, df: pd.DataFrame) -> None:
