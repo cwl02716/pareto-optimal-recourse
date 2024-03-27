@@ -54,9 +54,11 @@ def cost(df: pd.DataFrame, i: int, j: int) -> tuple[float, float]:
     )
     payment += 1.0 / (1.0 + 1.44*np.exp(m))  # add bias
 
-    # gain and loss
-    payment += b["capital-gain"] - a["capital-gain"]
-    payment -= b["capital-loss"] - a["capital-loss"]
+    # gain 
+    temp = (b["capital-gain"]*b["capital-gain"]) - (a["capital-gain"]*a["capital-gain"])
+    
+    #loss
+    temp -=  (b["capital-gain"]*b["capital-gain"]) - (a["capital-gain"]*a["capital-gain"])
 
     return time, payment
 
