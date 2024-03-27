@@ -54,11 +54,40 @@ def costs(df: pd.DataFrame, i: int, j: int) -> list[tuple[float, float]]:
     m -= b["workclass"] / (b["hours-per-week"] + eps)
     payment += 1.0 / (1.0 + 1.44 * np.exp(m))  # add bias
 
-    # gain 
-    temp = (b["capital-gain"]*b["capital-gain"]) - (a["capital-gain"]*a["capital-gain"])
-    
-    #loss
-    temp -=  (b["capital-gain"]*b["capital-gain"]) - (a["capital-gain"]*a["capital-gain"])
+    # gain
+    temp1 = [(b["capital-gain"]**2) - (a["capital-gain"]**2),0]
+    temp1[0] = max(temp1[0], time)
+    temp1[1] += payment
+
+    temp2 = [(b["capital-gain"] + a["capital-gain"]), (b["capital-gain"] - a["capital-gain"])]
+    temp2[0] = max(temp2[0], time)
+    temp2[1] += payment
+
+    temp3 = [(b["capital-gain"] - a["capital-gain"]), (b["capital-gain"] + a["capital-gain"])]
+    temp3[0] = max(temp3[0], time)
+    temp3[1] += payment
+
+    temp4 = [0,(b["capital-gain"]**2) - (a["capital-gain"]**2)]
+    temp4[0] = max(temp4[0], time)
+    temp4[1] += payment
+
+    # loss
+    temp1 = [(b["capital-loss"]**2) - (a["capital-loss"]**2),0]
+    temp1[0] = max(temp1[0], time)
+    temp1[1] = payment - temp1[1]
+
+    temp2 = [(b["capital-loss"] + a["capital-loss"]), (b["capital-loss"] - a["capital-loss"])]
+    temp2[0] = max(temp2[0], time)
+    temp2[1] = payment - temp2[1]
+
+    temp3 = [(b["capital-loss"] - a["capital-loss"]), (b["capital-loss"] + a["capital-loss"])]
+    temp3[0] = max(temp3[0], time)
+    temp3[1] = payment - temp3[1]
+
+    temp4 = [0,(b["capital-loss"]*b["capital-loss"]) - (a["capital-loss"]*a["capital-loss"])]
+    temp4[0] = max(temp4[0], time)
+    temp4[1] = payment - temp4[1]
+
 
     return [(time / 2, payment * 2), (time, payment), (time * 2, payment / 2)]
 
