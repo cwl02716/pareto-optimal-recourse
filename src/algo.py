@@ -44,15 +44,15 @@ def cost(df: pd.DataFrame, i: int, j: int) -> tuple[float, float]:
     # education
     time = max(time, b["education-num"] - a["education-num"])
 
-    # workclass
-    time = max(time, b["workclass"] - a["workclass"])
+    # workclass 
+    time = max(time, abs(b["workclass"] - a["workclass"]))
 
     # sigmoid(workclass : hours-per-week)
     eps = 1e-3
     m = a["workclass"] / (a["hours-per-week"] + eps) - b["workclass"] / (
         b["hours-per-week"] + eps
     )
-    payment += 1.0 / (1.0 + np.exp(m))
+    payment += 1.0 / (1.0 + 1.44*np.exp(m))  # add bias
 
     # gain and loss
     payment += b["capital-gain"] - a["capital-gain"]
