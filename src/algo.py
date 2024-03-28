@@ -7,13 +7,14 @@ import igraph as ig
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from helper import YCOL
 from scipy.sparse import csr_matrix
 from sklearn.decomposition import PCA
 from sklearn.neighbors import kneighbors_graph
 
 
 def make_knn_adj(df: pd.DataFrame, k: int) -> csr_matrix:
-    X = df.drop(columns="50K")
+    X = df.drop(columns=YCOL)
     A = kneighbors_graph(X, k)
     assert isinstance(A, csr_matrix)
     return A
@@ -25,7 +26,7 @@ def adj_to_graph(A: csr_matrix) -> ig.Graph:
 
 
 def add_terminate_point(graph: ig.Graph, df: pd.DataFrame) -> list[int]:
-    vertices = np.nonzero(df["50K"] == 1)[0].tolist()
+    vertices = np.nonzero(df[YCOL] == 1)[0].tolist()
     graph.add_vertex("t")
     graph.add_edges(
         [(v, "t") for v in vertices], {"costs": [[(0.0, 0.0)] for _ in vertices]}
@@ -55,41 +56,56 @@ def costs(df: pd.DataFrame, i: int, j: int) -> list[tuple[float, float]]:
     payment += 1.0 / (1.0 + 1.44 * np.exp(m))  # add bias
 
     # gain
-    temp1 = [(b["capital-gain"]**2) - (a["capital-gain"]**2),0]
+    temp1 = [(b["capital-gain"] ** 2) - (a["capital-gain"] ** 2), 0]
     temp1[0] = max(temp1[0], time)
     temp1[1] += payment
 
-    temp2 = [(b["capital-gain"] + a["capital-gain"]), (b["capital-gain"] - a["capital-gain"])]
+    temp2 = [
+        (b["capital-gain"] + a["capital-gain"]),
+        (b["capital-gain"] - a["capital-gain"]),
+    ]
     temp2[0] = max(temp2[0], time)
     temp2[1] += payment
 
-    temp3 = [(b["capital-gain"] - a["capital-gain"]), (b["capital-gain"] + a["capital-gain"])]
+    temp3 = [
+        (b["capital-gain"] - a["capital-gain"]),
+        (b["capital-gain"] + a["capital-gain"]),
+    ]
     temp3[0] = max(temp3[0], time)
     temp3[1] += payment
 
-    temp4 = [0,(b["capital-gain"]**2) - (a["capital-gain"]**2)]
+    temp4 = [0, (b["capital-gain"] ** 2) - (a["capital-gain"] ** 2)]
     temp4[0] = max(temp4[0], time)
     temp4[1] += payment
 
     # loss
-    temp1 = [(b["capital-loss"]**2) - (a["capital-loss"]**2),0]
+    temp1 = [(b["capital-loss"] ** 2) - (a["capital-loss"] ** 2), 0]
     temp1[0] = max(temp1[0], time)
     temp1[1] = payment - temp1[1]
 
-    temp2 = [(b["capital-loss"] + a["capital-loss"]), (b["capital-loss"] - a["capital-loss"])]
+    temp2 = [
+        (b["capital-loss"] + a["capital-loss"]),
+        (b["capital-loss"] - a["capital-loss"]),
+    ]
     temp2[0] = max(temp2[0], time)
     temp2[1] = payment - temp2[1]
 
-    temp3 = [(b["capital-loss"] - a["capital-loss"]), (b["capital-loss"] + a["capital-loss"])]
+    temp3 = [
+        (b["capital-loss"] - a["capital-loss"]),
+        (b["capital-loss"] + a["capital-loss"]),
+    ]
     temp3[0] = max(temp3[0], time)
     temp3[1] = payment - temp3[1]
 
-    temp4 = [0,(b["capital-loss"]*b["capital-loss"]) - (a["capital-loss"]*a["capital-loss"])]
+    temp4 = [
+        0,
+        (b["capital-loss"] * b["capital-loss"])
+        - (a["capital-loss"] * a["capital-loss"]),
+    ]
     temp4[0] = max(temp4[0], time)
     temp4[1] = payment - temp4[1]
 
-
-    return [tuple(temp1), tuple(temp2), tuple(temp3), tuple(temp4)] # type: ignore
+    return [tuple(temp1), tuple(temp2), tuple(temp3), tuple(temp4)]  # type: ignore
 
 
 def set_costs(graph: ig.Graph, df: pd.DataFrame) -> None:
@@ -147,7 +163,6 @@ def multicost_shortest_path(
     limit: int,
     verbose: bool = False,
 ) -> list[list[tuple[tuple[int, int], tuple[float, float]]]]:
-    
     parent_dists: list[list[tuple[tuple[int, int], tuple[float, float]]]] = [
         [] for _ in range(graph.vcount())
     ]
@@ -170,7 +185,18 @@ def recourse(
     *,
     limit: int,
     verbose: bool = False,
-) -> tuple[ig.Graph, list[int], list[list[tuple[tuple[int, int], tuple[float, float]]]]]:
+) -> tuple[
+    ig.Graph,
+    list[int],
+    list[
+        list[
+            tuple[
+                tuple[int, int],
+                tuple[float, float],
+            ]
+        ]
+    ],
+]:
     adj = make_knn_adj(df, k)
     graph = adj_to_graph(adj)
     set_costs(graph, df)
@@ -197,7 +223,6 @@ def backtracking(
             uv1, uv2 = graph.es[eid]["costs"][w]
 
             for (i, j), (si1, si2) in dist_u:
-                
                 if math.isclose(si1 + uv1, sv1) and math.isclose(si2 + uv2, sv2):
                     v = u
                     u, w = i, j
@@ -211,7 +236,7 @@ def backtracking(
 
 def get_layout(df: pd.DataFrame) -> list[tuple[int, int]]:
     pca = PCA(2)
-    coord: pd.DataFrame = pca.fit_transform(df.drop(columns=["50K"]))  # type: ignore
+    coord: pd.DataFrame = pca.fit_transform(df.drop(columns=[YCOL]))  # type: ignore
     return coord.to_numpy().tolist()
 
 
