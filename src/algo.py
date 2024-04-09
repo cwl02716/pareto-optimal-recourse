@@ -1,6 +1,7 @@
 import math
 from itertools import product
 from pprint import pprint
+from typing import Callable
 from warnings import warn
 
 import igraph as ig
@@ -28,86 +29,6 @@ def add_terminate_point(graph: ig.Graph, y: pd.Series) -> list[int]:
         [(v, "t") for v in vertices], {"costs": [[(0.0, 0.0)] for _ in vertices]}
     )
     return vertices
-
-
-def costs(df: pd.DataFrame, i: int, j: int) -> list[tuple[float, float]]:
-    time = 0.0
-    payment = 0.0
-    a: pd.Series[float] = df.loc[i]  # type: ignore
-    b: pd.Series[float] = df.loc[j]  # type: ignore
-
-    # for age
-    time = max(time, b["age"] - a["age"])
-
-    # education
-    time = max(time, b["education-num"] - a["education-num"])
-
-    # workclass
-    time = max(time, abs(b["workclass"] - a["workclass"]))
-
-    # sigmoid(workclass : hours-per-week)
-    eps = 1e-3
-    m = a["workclass"] / (a["hours-per-week"] + eps)
-    m -= b["workclass"] / (b["hours-per-week"] + eps)
-    payment += 1.0 / (1.0 + 1.44 * np.exp(m))  # add bias
-
-    # gain
-    temp1 = [(b["capital-gain"] ** 2) - (a["capital-gain"] ** 2), 0]
-    temp1[0] = max(temp1[0], time)
-    temp1[1] += payment
-
-    temp2 = [
-        (b["capital-gain"] + a["capital-gain"]),
-        (b["capital-gain"] - a["capital-gain"]),
-    ]
-    temp2[0] = max(temp2[0], time)
-    temp2[1] += payment
-
-    temp3 = [
-        (b["capital-gain"] - a["capital-gain"]),
-        (b["capital-gain"] + a["capital-gain"]),
-    ]
-    temp3[0] = max(temp3[0], time)
-    temp3[1] += payment
-
-    temp4 = [0, (b["capital-gain"] ** 2) - (a["capital-gain"] ** 2)]
-    temp4[0] = max(temp4[0], time)
-    temp4[1] += payment
-
-    # loss
-    temp1 = [(b["capital-loss"] ** 2) - (a["capital-loss"] ** 2), 0]
-    temp1[0] = max(temp1[0], time)
-    temp1[1] = payment - temp1[1]
-
-    temp2 = [
-        (b["capital-loss"] + a["capital-loss"]),
-        (b["capital-loss"] - a["capital-loss"]),
-    ]
-    temp2[0] = max(temp2[0], time)
-    temp2[1] = payment - temp2[1]
-
-    temp3 = [
-        (b["capital-loss"] - a["capital-loss"]),
-        (b["capital-loss"] + a["capital-loss"]),
-    ]
-    temp3[0] = max(temp3[0], time)
-    temp3[1] = payment - temp3[1]
-
-    temp4 = [
-        0,
-        (b["capital-loss"] * b["capital-loss"])
-        - (a["capital-loss"] * a["capital-loss"]),
-    ]
-    temp4[0] = max(temp4[0], time)
-    temp4[1] = payment - temp4[1]
-
-    return [tuple(temp1), tuple(temp2), tuple(temp3), tuple(temp4)]  # type: ignore
-
-
-def set_costs(graph: ig.Graph, df: pd.DataFrame) -> None:
-    for e in graph.es:
-        u, v = e.tuple
-        e["costs"] = costs(df, u, v)
 
 
 def merge(
@@ -179,24 +100,22 @@ def recourse(
     y: pd.Series,
     k: int,
     source: int,
+    cost_fn: Callable[[int, int], list[tuple[float, float]]],
     *,
     limit: int,
     verbose: bool = False,
 ) -> tuple[
     ig.Graph,
     list[int],
-    list[
-        list[
-            tuple[
-                tuple[int, int],
-                tuple[float, float],
-            ]
-        ]
-    ],
+    list[list[tuple[tuple[int, int], tuple[float, float]]]],
 ]:
     adj = make_knn_adj(X, k)
     graph = adj_to_graph(adj)
-    set_costs(graph, X)
+
+    for e in graph.es:
+        u, v = e.tuple
+        e["costs"] = cost_fn(u, v)
+
     ts = add_terminate_point(graph, y)
     parent_dists = multicost_shortest_path(graph, source, limit=limit, verbose=verbose)
     return graph, ts, parent_dists
@@ -229,4 +148,3 @@ def backtracking(
                 raise ValueError("No path found!")
         paths.append(path)
     return paths
-
