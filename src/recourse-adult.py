@@ -71,17 +71,24 @@ def main(index: int, size: int, k: int, limit: int, *, seed: int) -> None:
 
     scalar, df_small, s = transform(df, index, size, k, seed=seed)
 
-    graph, ts, dists = recourse(df_small, k, s, limit=limit, verbose=False)
+    X = df_small.drop(columns=YCOL)
+    y = df_small[YCOL]
+    graph, ts, dists = recourse(X, y, k, s, limit=limit, verbose=False)
 
     paths = backtracking(graph, dists, s, size)
 
     pca = PCA(2)
-    pca.fit(df_small.drop(columns=YCOL))
-    if paths:
-        show_path(df_small, paths[0], pca)
+    pca.fit(X)
+
+    for path in paths:
+        print(path)
+        show_path(df_small, path, pca)
+        break
+    else:
+        print("No path found")
 
 
 sklearn.set_config(transform_output="pandas")
 
 if __name__ == "__main__":
-    main(0, 100, 3, 100, seed=42)
+    main(0, 256, 3, 10, seed=42)

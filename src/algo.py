@@ -4,17 +4,13 @@ from pprint import pprint
 from warnings import warn
 
 import igraph as ig
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from helper import YCOL
 from scipy.sparse import csr_matrix
-from sklearn.decomposition import PCA
 from sklearn.neighbors import kneighbors_graph
 
 
-def make_knn_adj(df: pd.DataFrame, k: int) -> csr_matrix:
-    X = df.drop(columns=YCOL)
+def make_knn_adj(X: pd.DataFrame, k: int) -> csr_matrix:
     A = kneighbors_graph(X, k)
     assert isinstance(A, csr_matrix)
     return A
@@ -25,8 +21,8 @@ def adj_to_graph(A: csr_matrix) -> ig.Graph:
     return graph
 
 
-def add_terminate_point(graph: ig.Graph, df: pd.DataFrame) -> list[int]:
-    vertices = np.nonzero(df[YCOL] == 1)[0].tolist()
+def add_terminate_point(graph: ig.Graph, y: pd.Series) -> list[int]:
+    vertices = np.nonzero(y == 1)[0].tolist()
     graph.add_vertex("t")
     graph.add_edges(
         [(v, "t") for v in vertices], {"costs": [[(0.0, 0.0)] for _ in vertices]}
@@ -179,7 +175,8 @@ def multicost_shortest_path(
 
 
 def recourse(
-    df: pd.DataFrame,
+    X: pd.DataFrame,
+    y: pd.Series,
     k: int,
     source: int,
     *,
@@ -197,10 +194,10 @@ def recourse(
         ]
     ],
 ]:
-    adj = make_knn_adj(df, k)
+    adj = make_knn_adj(X, k)
     graph = adj_to_graph(adj)
-    set_costs(graph, df)
-    ts = add_terminate_point(graph, df)
+    set_costs(graph, X)
+    ts = add_terminate_point(graph, y)
     parent_dists = multicost_shortest_path(graph, source, limit=limit, verbose=verbose)
     return graph, ts, parent_dists
 
@@ -233,27 +230,3 @@ def backtracking(
         paths.append(path)
     return paths
 
-
-def get_layout(df: pd.DataFrame) -> list[tuple[int, int]]:
-    pca = PCA(2)
-    coord: pd.DataFrame = pca.fit_transform(df.drop(columns=[YCOL]))  # type: ignore
-    return coord.to_numpy().tolist()
-
-
-def show_graph(
-    graph: ig.Graph, coord: list[tuple[int, int]], source: int, ts: list[int]
-):
-    fig, ax = plt.subplots(figsize=(12, 12), layout="tight")
-    ig.plot(
-        graph,
-        ax,
-        layout=coord,
-        # edge_arrow_size=2,
-        vertex_label=graph.vs.indices,
-        vertex_color=[
-            "red" if i == source else "blue" if i in ts else "lightblue"
-            for i in range(graph.vcount())
-        ],
-        edge_label=[f"{a:.2f},{b:.2f}" for (a, b), *_ in graph.es["costs"]],
-    )
-    plt.show()
