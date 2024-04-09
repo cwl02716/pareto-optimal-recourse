@@ -22,13 +22,10 @@ def adj_to_graph(A: csr_matrix) -> ig.Graph:
     return graph
 
 
-def add_terminate_point(graph: ig.Graph, y: pd.Series) -> list[int]:
-    vertices = np.nonzero(y == 1)[0].tolist()
+def add_terminate_point(graph: ig.Graph, ts: list[int]) -> list[int]:
     graph.add_vertex("t")
-    graph.add_edges(
-        [(v, "t") for v in vertices], {"costs": [[(0.0, 0.0)] for _ in vertices]}
-    )
-    return vertices
+    graph.add_edges([(v, "t") for v in ts], {"costs": [[(0.0, 0.0)] for _ in ts]})
+    return ts
 
 
 def merge(
@@ -100,13 +97,13 @@ def recourse(
     y: pd.Series,
     k: int,
     source: int,
+    terminates: list[int],
     cost_fn: Callable[[int, int], list[tuple[float, float]]],
     *,
     limit: int,
     verbose: bool = False,
 ) -> tuple[
     ig.Graph,
-    list[int],
     list[list[tuple[tuple[int, int], tuple[float, float]]]],
 ]:
     adj = make_knn_adj(X, k)
@@ -116,9 +113,9 @@ def recourse(
         u, v = e.tuple
         e["costs"] = cost_fn(u, v)
 
-    ts = add_terminate_point(graph, y)
+    add_terminate_point(graph, terminates)
     parent_dists = multicost_shortest_path(graph, source, limit=limit, verbose=verbose)
-    return graph, ts, parent_dists
+    return graph, parent_dists
 
 
 def backtracking(

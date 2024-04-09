@@ -1,5 +1,5 @@
-from functools import partial
 import math
+from functools import partial
 from typing import Any
 
 import pandas as pd
@@ -48,6 +48,7 @@ def transform(
     index_small = kmeans.predict(X_scaled.iloc[[index]]).item()
 
     return scaler, df_small, index_small
+
 
 
 def cost_fn(df: pd.DataFrame, i: int, j: int) -> list[tuple[float, float]]:
@@ -150,11 +151,15 @@ def main(index: int, size: int, k: int, limit: int, *, seed: int) -> None:
 
     X = df_small.drop(columns=YCOL)
     y = df_small[YCOL]
-    graph, ts, dists = recourse(
+
+    ts = (y == 1).to_numpy().nonzero()[0].tolist()
+
+    graph, dists = recourse(
         X,
         y,
         k,
         s,
+        ts,
         partial(cost_fn, df_small),
         limit=limit,
         verbose=False,
