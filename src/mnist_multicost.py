@@ -1,33 +1,15 @@
-import traceback
 from datetime import datetime
 from functools import partial
-from os import PathLike
 from pathlib import Path
-from typing import Any
 
 import fire
 import numpy as np
 import pandas as pd
 import sklearn
 from algorithm import backtracking, recourse
-from fire.core import FireExit
-from matplotlib import pyplot as plt
-from sklearn.datasets import fetch_openml
-from sklearn.preprocessing import MinMaxScaler
+from mnist_helper import fire_cmd, get_sample, load_dataframe, plot_images
 
 sklearn.set_config(transform_output="pandas")
-
-
-def get_sample(
-    X: pd.DataFrame, y: pd.Series, size: int, *, seed: Any = None, verbose: bool = False
-) -> tuple[pd.DataFrame, pd.Series]:
-    X_sample = X.sample(size, random_state=seed)
-    y_sample = y[X_sample.index]
-    X_sample.reset_index(drop=True, inplace=True)
-    y_sample.reset_index(drop=True, inplace=True)
-    if verbose:
-        print(f"Sampled dataset with size {size}")
-    return X_sample, y_sample
 
 
 def get_source_targets(
@@ -58,29 +40,7 @@ def multi_costs_fn(df: pd.DataFrame, i: int, j: int) -> list[tuple[float, float]
     return [(l1, l2)]
 
 
-def plot_images(
-    df, indices: list[int], *, file: PathLike | None = None, verbose: bool = False
-) -> None:
-    fig, axes = plt.subplots(
-        1,
-        len(indices),
-        layout="tight",
-        squeeze=False,
-        subplot_kw={"xticks": [], "yticks": []},
-    )
-    axes = axes[0]
-    for ax, i in zip(axes, indices):
-        ax.imshow(df.iloc[i].to_numpy().reshape(28, 28), cmap="gray")
-    if file is None:
-        plt.show()
-    else:
-        plt.savefig(file)
-        plt.close()
-        if verbose:
-            print(f"Saved image in {file}")
-
-
-def main(verbose: bool = False) -> None:
+def main(verbose: bool = True) -> None:
     def recourse_mnist(
         source: int,
         target: int,
@@ -111,30 +71,9 @@ def main(verbose: bool = False) -> None:
             name = f"mnist-{stamp}-{source}-{target}-{i}.png"
             plot_images(X_sample, path, file=dir / name, verbose=verbose)
 
-    if verbose:
-        print("Starting fetching MNIST dataset...")
-    X, y = fetch_openml("mnist_784", return_X_y=True, as_frame=True)
-    scaler = MinMaxScaler()
-    X = scaler.fit_transform(X)  # type: ignore
-    if verbose:
-        print("Fetching MNIST dataset finished!")
+    X, y = load_dataframe(verbose=verbose)
 
-    prompt = "> "
-    while True:
-        try:
-            fire.Fire(recourse_mnist, input(prompt))
-
-        except FireExit:
-            pass
-
-        except EOFError:
-            break
-
-        except Exception:
-            traceback.print_exc()
-
-        finally:
-            print()
+    fire_cmd(recourse_mnist, "MNIST-MultiCost")
 
 
 if __name__ == "__main__":
