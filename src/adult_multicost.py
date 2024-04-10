@@ -4,7 +4,7 @@ from typing import Any
 
 import pandas as pd
 import sklearn
-from algo import backtracking, recourse
+from algorithm import backtracking, recourse
 from helper import load_dataframe, select_rows_by_immutables
 from matplotlib import pyplot as plt
 from sklearn.cluster import KMeans
@@ -48,7 +48,6 @@ def transform(
     index_small = kmeans.predict(X_scaled.iloc[[index]]).item()
 
     return scaler, df_small, index_small
-
 
 
 def cost_fn(df: pd.DataFrame, i: int, j: int) -> list[tuple[float, float]]:
@@ -156,7 +155,6 @@ def main(index: int, size: int, k: int, limit: int, *, seed: int) -> None:
 
     graph, dists = recourse(
         X,
-        y,
         k,
         s,
         ts,

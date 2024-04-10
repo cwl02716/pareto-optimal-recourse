@@ -1,6 +1,5 @@
 import math
 from itertools import product
-from pprint import pprint
 from typing import Callable
 from warnings import warn
 
@@ -11,21 +10,9 @@ from scipy.sparse import csr_matrix
 from sklearn.neighbors import kneighbors_graph
 
 
-def make_knn_adj(X: pd.DataFrame, k: int) -> csr_matrix:
-    A = kneighbors_graph(X, k)
-    assert isinstance(A, csr_matrix)
-    return A
-
-
-def adj_to_graph(A: csr_matrix) -> ig.Graph:
-    graph = ig.Graph.Adjacency(A.astype(np.int_))
-    return graph
-
-
-def add_terminate_point(graph: ig.Graph, ts: list[int]) -> list[int]:
-    graph.add_vertex("t")
-    graph.add_edges([(v, "t") for v in ts], {"costs": [[(0.0, 0.0)] for _ in ts]})
-    return ts
+def add_pseudo_target(graph: ig.Graph, vs: list[int]) -> None:
+    t = graph.add_vertex().index
+    graph.add_edges([(v, t) for v in vs], {"costs": [[(0.0, 0.0)] for _ in vs]})
 
 
 def merge(
@@ -71,11 +58,7 @@ def dominant_points_2d(
 
 
 def multicost_shortest_path(
-    graph: ig.Graph,
-    source: int,
-    *,
-    limit: int,
-    verbose: bool = False,
+    graph: ig.Graph, source: int, *, limit: int
 ) -> list[list[tuple[tuple[int, int], tuple[float, float]]]]:
     parent_dists: list[list[tuple[tuple[int, int], tuple[float, float]]]] = [
         [] for _ in range(graph.vcount())
@@ -87,14 +70,11 @@ def multicost_shortest_path(
         for e in graph.es:
             u, v = e.tuple
             merge(parent_dists, u, v, e["costs"], limit=limit)
-        if verbose:
-            pprint(parent_dists, indent=4)
     return parent_dists
 
 
 def recourse(
     X: pd.DataFrame,
-    y: pd.Series,
     k: int,
     source: int,
     terminates: list[int],
@@ -106,15 +86,19 @@ def recourse(
     ig.Graph,
     list[list[tuple[tuple[int, int], tuple[float, float]]]],
 ]:
-    adj = make_knn_adj(X, k)
-    graph = adj_to_graph(adj)
+    if verbose:
+        print("Starting recourse algorithm...")
+    adj: csr_matrix = kneighbors_graph(X, k)  # type: ignore
+    graph = ig.Graph.Adjacency(adj.astype(np.int_))
 
     for e in graph.es:
         u, v = e.tuple
         e["costs"] = cost_fn(u, v)
 
-    add_terminate_point(graph, terminates)
-    parent_dists = multicost_shortest_path(graph, source, limit=limit, verbose=verbose)
+    add_pseudo_target(graph, terminates)
+    parent_dists = multicost_shortest_path(graph, source, limit=limit)
+    if verbose:
+        print("Recourse algorithm finished!")
     return graph, parent_dists
 
 
@@ -123,6 +107,8 @@ def backtracking(
     dists: list[list[tuple[tuple[int, int], tuple[float, float]]]],
     s: int,
     t: int,
+    *,
+    verbose: bool = False,
 ) -> list[list[int]]:
     paths = []
     for (u, w), (sv1, sv2) in dists[t]:
@@ -143,5 +129,8 @@ def backtracking(
                     break
             else:
                 raise ValueError("No path found!")
+        path.reverse()
         paths.append(path)
+        if verbose:
+            print(f"Path: {path}")
     return paths
