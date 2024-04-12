@@ -33,20 +33,18 @@ def multi_costs_fn(
     a = X.iloc[i]
     b = X.iloc[j]
 
+    # l2 = np.linalg.norm(x, 2, 0)
+
+    l1 = (int(y[j]) - int(y[i])) ** 2
+
     x = np.subtract(b, a)
-    l2 = np.linalg.norm(x, 2, 0)
+    np.abs(x, x)
+    sum_of_diff = x.sum()
+    np.maximum.reduce((a, b), out=x)
+    sum_of_max = x.sum()
+    l2 = sum_of_diff / sum_of_max
 
-    l1 = (abs(int(y[j]) - int(y[i])) + 0.5) ** 2
-
-    # x = np.abs(x, x)
-    # sum_of_diff = x.sum()
-
-    # x = np.maximum.reduce((a, b), out=x)
-    # sum_of_max = x.sum()
-
-    # l1 = sum_of_diff / sum_of_max
-
-    return (l1, l2)
+    return l1, l2
 
 
 def main(verbose: bool = True) -> None:
