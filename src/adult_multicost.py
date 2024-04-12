@@ -5,7 +5,7 @@ from typing import Any
 import pandas as pd
 import sklearn
 from algorithm import backtracking, make_knn_graph, recourse
-from helper import load_dataframe, select_rows_by_immutables
+from adult_helper import load_dataframe, select_rows_by_immutables
 from matplotlib import pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
@@ -50,12 +50,12 @@ def transform(
     return scaler, df_small, index_small
 
 
-def cost_fn(df: pd.DataFrame, i: int, j: int) -> list[tuple[float, float]]:
+def cost_fn(df: pd.DataFrame, i: int, j: int) -> tuple[float, float]:
     time = 0.0
     payment = 0.0
 
-    a: pd.Series = df.loc[i]  # type: ignore
-    b: pd.Series = df.loc[j]  # type: ignore
+    a = df.iloc[i]
+    b = df.iloc[j]
 
     # for age
     time = max(time, b["age"] - a["age"])
@@ -66,63 +66,21 @@ def cost_fn(df: pd.DataFrame, i: int, j: int) -> list[tuple[float, float]]:
     # workclass
     time = max(time, abs(b["workclass"] - a["workclass"]))
 
+    time = max(
+        time,
+        (b["capital-gain"] ** 2)
+        + (b["capital-loss"] ** 2)
+        - (a["capital-gain"] ** 2)
+        - (a["capital-loss"] ** 2),
+    )
+
     # sigmoid(workclass : hours-per-week)
     eps = 1e-3
     m = a["workclass"] / (a["hours-per-week"] + eps)
     m -= b["workclass"] / (b["hours-per-week"] + eps)
     payment += 1.0 / (1.0 + 1.44 * math.exp(m))  # add bias
 
-    # gain
-    temp1 = [(b["capital-gain"] ** 2) - (a["capital-gain"] ** 2), 0]
-    temp1[0] = max(temp1[0], time)
-    temp1[1] += payment
-
-    temp2 = [
-        (b["capital-gain"] + a["capital-gain"]),
-        (b["capital-gain"] - a["capital-gain"]),
-    ]
-    temp2[0] = max(temp2[0], time)
-    temp2[1] += payment
-
-    temp3 = [
-        (b["capital-gain"] - a["capital-gain"]),
-        (b["capital-gain"] + a["capital-gain"]),
-    ]
-    temp3[0] = max(temp3[0], time)
-    temp3[1] += payment
-
-    temp4 = [0, (b["capital-gain"] ** 2) - (a["capital-gain"] ** 2)]
-    temp4[0] = max(temp4[0], time)
-    temp4[1] += payment
-
-    # loss
-    temp1 = [(b["capital-loss"] ** 2) - (a["capital-loss"] ** 2), 0]
-    temp1[0] = max(temp1[0], time)
-    temp1[1] = payment - temp1[1]
-
-    temp2 = [
-        (b["capital-loss"] + a["capital-loss"]),
-        (b["capital-loss"] - a["capital-loss"]),
-    ]
-    temp2[0] = max(temp2[0], time)
-    temp2[1] = payment - temp2[1]
-
-    temp3 = [
-        (b["capital-loss"] - a["capital-loss"]),
-        (b["capital-loss"] + a["capital-loss"]),
-    ]
-    temp3[0] = max(temp3[0], time)
-    temp3[1] = payment - temp3[1]
-
-    temp4 = [
-        0,
-        (b["capital-loss"] * b["capital-loss"])
-        - (a["capital-loss"] * a["capital-loss"]),
-    ]
-    temp4[0] = max(temp4[0], time)
-    temp4[1] = payment - temp4[1]
-
-    return [tuple(temp1), tuple(temp2), tuple(temp3), tuple(temp4)]  # type: ignore
+    return time, payment
 
 
 def show_path(
@@ -141,7 +99,15 @@ def show_path(
     plt.show()
 
 
-def main(index: int, samples: int, neighbors: int, limit: int, *, seed: int) -> None:
+def main(
+    index: int,
+    samples: int,
+    neighbors: int,
+    limit: int,
+    *,
+    verbose: bool = False,
+    seed: int = 0,
+) -> None:
     df = load_dataframe(PATH, DROPS)
 
     df = select_rows_by_immutables(df, index, IMMUTABLES)
@@ -160,24 +126,28 @@ def main(index: int, samples: int, neighbors: int, limit: int, *, seed: int) -> 
         s,
         ts,
         partial(cost_fn, df_small),
-        limit=limit,
-        verbose=False,
+        limit,
+        key="cost",
+        verbose=verbose,
     )
 
-    paths = backtracking(graph, dists, s, samples)
+    paths = backtracking(
+        graph,
+        dists,
+        s,
+        samples,
+        key="cost",
+        verbose=verbose,
+    )
 
     pca = PCA(2)
     pca.fit(X)
 
     for path in paths:
-        print(path)
         show_path(df_small, path, pca)
-        break
-    else:
-        print("No path found")
 
 
 sklearn.set_config(transform_output="pandas")
 
 if __name__ == "__main__":
-    main(100, 256, 3, 10, seed=42)
+    main(100, 256, 3, 10, verbose=True, seed=42)

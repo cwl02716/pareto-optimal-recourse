@@ -11,7 +11,7 @@ from sklearn.preprocessing import MinMaxScaler
 
 
 def get_sample(
-    X: pd.DataFrame, y: pd.Series, size: int, *, seed: Any = None, verbose: bool = False
+    X: pd.DataFrame, y: pd.Series, size: int, *, seed: int, verbose: bool
 ) -> tuple[pd.DataFrame, pd.Series]:
     X_sample = X.sample(size, random_state=seed)
     y_sample = y[X_sample.index]
@@ -23,7 +23,11 @@ def get_sample(
 
 
 def plot_images(
-    df, indices: list[int], *, file: PathLike | None = None, verbose: bool = False
+    df: pd.DataFrame,
+    indices: list[int],
+    *,
+    file: PathLike[str] | None,
+    verbose: bool,
 ) -> None:
     fig, axes = plt.subplots(
         1,
@@ -44,15 +48,12 @@ def plot_images(
             print(f"Saved image in {file}")
 
 
-def load_dataframe(
-    *, scale: bool = True, verbose: bool = False
-) -> tuple[pd.DataFrame, pd.Series]:
+def load_dataframe(*, verbose: bool) -> tuple[pd.DataFrame, pd.Series]:
     if verbose:
         print("Starting fetching MNIST dataset...")
     X, y = fetch_openml("mnist_784", return_X_y=True, as_frame=True)
-    if scale:
-        scaler = MinMaxScaler()
-        X = scaler.fit_transform(X)  # type: ignore
+    scaler = MinMaxScaler()
+    X = scaler.fit_transform(X)  # type: ignore
     if verbose:
         print("Fetching MNIST dataset finished!")
     return X, y  # type: ignore

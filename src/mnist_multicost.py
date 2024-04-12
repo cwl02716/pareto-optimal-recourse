@@ -13,7 +13,12 @@ sklearn.set_config(transform_output="pandas")
 
 
 def get_source_targets(
-    X: pd.DataFrame, y: pd.Series, source: int, target: int, *, verbose: bool = False
+    X: pd.DataFrame,
+    y: pd.Series,
+    source: int,
+    target: int,
+    *,
+    verbose: bool = False,
 ) -> tuple[int, list[int]]:
     s = X[y == str(source)].index[0]
     ts = X[y == str(target)].index.tolist()
@@ -22,22 +27,26 @@ def get_source_targets(
     return s, ts
 
 
-def multi_costs_fn(df: pd.DataFrame, i: int, j: int) -> list[tuple[float, float]]:
-    a = df.iloc[i]
-    b = df.iloc[j]
+def multi_costs_fn(
+    X: pd.DataFrame, y: pd.Series, i: int, j: int
+) -> tuple[float, float]:
+    a = X.iloc[i]
+    b = X.iloc[j]
 
-    x = np.subtract(a, b)
+    x = np.subtract(b, a)
     l2 = np.linalg.norm(x, 2, 0)
 
-    x = np.abs(x, x)
-    sum_of_diff = x.sum()
+    l1 = (abs(int(y[j]) - int(y[i])) + 0.5) ** 2
 
-    x = np.maximum.reduce((a, b), out=x)
-    sum_of_max = x.sum()
+    # x = np.abs(x, x)
+    # sum_of_diff = x.sum()
 
-    l1 = sum_of_diff / sum_of_max
+    # x = np.maximum.reduce((a, b), out=x)
+    # sum_of_max = x.sum()
 
-    return [(l1, l2)]
+    # l1 = sum_of_diff / sum_of_max
+
+    return (l1, l2)
 
 
 def main(verbose: bool = True) -> None:
@@ -50,18 +59,27 @@ def main(verbose: bool = True) -> None:
         *,
         seed: int = 0,
     ) -> None:
-        X_sample, y_sample = get_sample(X, y, samples, seed=seed, verbose=verbose)  # type: ignore
+        X_sample, y_sample = get_sample(X, y, samples, seed=seed, verbose=verbose)
         s, ts = get_source_targets(X_sample, y_sample, source, target, verbose=verbose)
         graph = make_knn_graph(X_sample, neighbors)
+
         dists = recourse(
             graph,
             s,
             ts,
-            partial(multi_costs_fn, X_sample),
-            limit=limit,
+            partial(multi_costs_fn, X_sample, y_sample),
+            limit,
+            key=key,
             verbose=verbose,
         )
-        paths = backtracking(graph, dists, s, samples, verbose=verbose)
+        paths = backtracking(
+            graph,
+            dists,
+            s,
+            samples,
+            key=key,
+            verbose=verbose,
+        )
 
         dir = Path("images")
         dir.mkdir(exist_ok=True, parents=True)
@@ -71,8 +89,8 @@ def main(verbose: bool = True) -> None:
             name = f"mnist-{stamp}-{source}-{target}-{i}.png"
             plot_images(X_sample, path, file=dir / name, verbose=verbose)
 
+    key = "cost"
     X, y = load_dataframe(verbose=verbose)
-
     fire_cmd(recourse_mnist, "MNIST-MultiCost")
 
 
