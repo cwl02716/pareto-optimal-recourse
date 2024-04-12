@@ -4,7 +4,7 @@ from typing import Any
 
 import pandas as pd
 import sklearn
-from algorithm import backtracking, recourse
+from algorithm import backtracking, make_knn_graph, recourse
 from helper import load_dataframe, select_rows_by_immutables
 from matplotlib import pyplot as plt
 from sklearn.cluster import KMeans
@@ -141,21 +141,22 @@ def show_path(
     plt.show()
 
 
-def main(index: int, size: int, k: int, limit: int, *, seed: int) -> None:
+def main(index: int, samples: int, neighbors: int, limit: int, *, seed: int) -> None:
     df = load_dataframe(PATH, DROPS)
 
     df = select_rows_by_immutables(df, index, IMMUTABLES)
 
-    scalar, df_small, s = transform(df, index, size, k, seed=seed)
+    scalar, df_small, s = transform(df, index, samples, neighbors, seed=seed)
 
     X = df_small.drop(columns=YCOL)
     y = df_small[YCOL]
 
     ts = (y == 1).to_numpy().nonzero()[0].tolist()
 
-    graph, dists = recourse(
-        X,
-        k,
+    graph = make_knn_graph(X, neighbors)
+
+    dists = recourse(
+        graph,
         s,
         ts,
         partial(cost_fn, df_small),
@@ -163,7 +164,7 @@ def main(index: int, size: int, k: int, limit: int, *, seed: int) -> None:
         verbose=False,
     )
 
-    paths = backtracking(graph, dists, s, size)
+    paths = backtracking(graph, dists, s, samples)
 
     pca = PCA(2)
     pca.fit(X)

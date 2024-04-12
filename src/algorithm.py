@@ -73,23 +73,23 @@ def multicost_shortest_path(
     return parent_dists
 
 
+def make_knn_graph(X: pd.DataFrame, k: int) -> ig.Graph:
+    adj: csr_matrix = kneighbors_graph(X, k)  # type: ignore
+    graph = ig.Graph.Adjacency(adj.astype(np.int_))
+    return graph
+
+
 def recourse(
-    X: pd.DataFrame,
-    k: int,
+    graph: ig.Graph,
     source: int,
     terminates: list[int],
     cost_fn: Callable[[int, int], list[tuple[float, float]]],
     *,
     limit: int,
     verbose: bool = False,
-) -> tuple[
-    ig.Graph,
-    list[list[tuple[tuple[int, int], tuple[float, float]]]],
-]:
+) -> list[list[tuple[tuple[int, int], tuple[float, float]]]]:
     if verbose:
         print("Starting recourse algorithm...")
-    adj: csr_matrix = kneighbors_graph(X, k)  # type: ignore
-    graph = ig.Graph.Adjacency(adj.astype(np.int_))
 
     for e in graph.es:
         u, v = e.tuple
@@ -99,7 +99,7 @@ def recourse(
     parent_dists = multicost_shortest_path(graph, source, limit=limit)
     if verbose:
         print("Recourse algorithm finished!")
-    return graph, parent_dists
+    return parent_dists
 
 
 def backtracking(

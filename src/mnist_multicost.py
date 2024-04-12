@@ -6,7 +6,7 @@ import fire
 import numpy as np
 import pandas as pd
 import sklearn
-from algorithm import backtracking, recourse
+from algorithm import backtracking, make_knn_graph, recourse
 from mnist_helper import fire_cmd, get_sample, load_dataframe, plot_images
 
 sklearn.set_config(transform_output="pandas")
@@ -52,9 +52,9 @@ def main(verbose: bool = True) -> None:
     ) -> None:
         X_sample, y_sample = get_sample(X, y, samples, seed=seed, verbose=verbose)  # type: ignore
         s, ts = get_source_targets(X_sample, y_sample, source, target, verbose=verbose)
-        graph, dists = recourse(
-            X_sample,
-            neighbors,
+        graph = make_knn_graph(X_sample, neighbors)
+        dists = recourse(
+            graph,
             s,
             ts,
             partial(multi_costs_fn, X_sample),
