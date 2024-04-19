@@ -20,8 +20,8 @@ def get_source_targets(
     *,
     verbose: bool = False,
 ) -> tuple[int, list[int]]:
-    s = X[y == str(source)].index[0]
-    ts = X[y == str(target)].index.tolist()
+    s = X[y == source].index[0]
+    ts = X[y == target].index.tolist()
     if verbose:
         print(f"Source: {s}, Targets: {ts[:5]} ...")
     return s, ts
@@ -32,18 +32,12 @@ def multi_costs_fn(
 ) -> tuple[float, float]:
     a = X.iloc[i]
     b = X.iloc[j]
-
-    # l2 = np.linalg.norm(x, 2, 0)
-
-    l1 = (int(y[j]) - int(y[i])) ** 2
-
-    x = np.subtract(b, a)
-    np.abs(x, x)
+    l1 = (y[j] - y[i]).item() ** 2
+    x = np.minimum.reduce((a, b))
     sum_of_diff = x.sum()
     np.maximum.reduce((a, b), out=x)
     sum_of_max = x.sum()
     l2 = sum_of_diff / sum_of_max
-
     return l1, l2
 
 
@@ -79,12 +73,12 @@ def main(verbose: bool = True) -> None:
             verbose=verbose,
         )
 
-        dir = Path("images")
+        dir = Path("images/mnist_multicost")
         dir.mkdir(exist_ok=True, parents=True)
-        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        stamp = datetime.now().strftime("%Y%m%dT%H%M%S")
 
         for i, path in enumerate(paths):
-            name = f"mnist-{stamp}-{source}-{target}-{i}.png"
+            name = f"{stamp}-{source}-{target}-{i}.png"
             plot_images(X_sample, path, file=dir / name, verbose=verbose)
 
     key = "cost"
