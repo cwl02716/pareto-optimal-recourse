@@ -47,6 +47,12 @@ class Cost[T: Comparable](Protocol):
 
 
 class FloatingCost(Cost[float]):
+    def __float__(self) -> float:
+        return self.value
+
+    def __repr__(self) -> str:
+        return format(self.value, ".2f")
+
     def isclose(self, other: Self) -> bool:
         return math.isclose(self.value, other.value)
 
@@ -55,9 +61,6 @@ class FloatingCost(Cost[float]):
 
     def upperbound(self) -> Self:
         return type(self)(math.inf)
-
-    def __repr__(self) -> str:
-        return format(self.value, ".2f")
 
 
 class AdditionCost(FloatingCost):

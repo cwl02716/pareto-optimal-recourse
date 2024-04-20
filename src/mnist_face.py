@@ -1,13 +1,12 @@
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Callable
 
 import fire
 import igraph as ig
 import pandas as pd
 import sklearn
-from algorithm import make_knn_graph_with_dummy_target
+from algorithm import AdditionCost, make_knn_graph_with_dummy_target
 from mnist_helper import (
     fire_cmd,
     get_sample,
@@ -20,25 +19,14 @@ from sklearn.neighbors import KernelDensity
 sklearn.set_config(transform_output="pandas")
 
 
-def kde_fn(df: pd.DataFrame, kde: KernelDensity, i: int, j: int) -> float:
-    return kde.score_samples(df.iloc[[j]]).item()
+def kde_fn(df: pd.DataFrame, kde: KernelDensity, i: int, j: int) -> AdditionCost:
+    return AdditionCost(-kde.score_samples(df.iloc[[j]]).item())
 
 
-def shortest_path(
-    graph: ig.Graph,
-    s: int,
-    ts: list[int],
-    cost_fn: Callable[[int, int], float],
-    *,
-    verbose: bool = False,
-) -> list[list[int]]:
-    for e in graph.es:
-        u, v = e.tuple
-        e["cost"] = cost_fn(u, v)
-    assert all(w >= 0 for w in graph.es["cost"])
-    return [
-        x for x in graph.get_shortest_paths(s, ts, "cost", algorithm="dijkstra") if x
-    ]
+def shortest_path(graph: ig.Graph, s: int, t: int, *, key: str) -> list[int]:
+    paths = graph.get_shortest_paths(s, t, key, algorithm="bellman_ford")
+    assert len(paths) == 1
+    return paths[0][:-1]
 
 
 def main(verbose: bool = True) -> None:
@@ -50,32 +38,42 @@ def main(verbose: bool = True) -> None:
         *,
         seed: int = 0,
     ) -> None:
-        X_sample, y_sample = get_sample(X, y, samples, seed=seed, verbose=verbose)  # type: ignore
+        X, y = get_sample(X_raw, y_raw, samples, seed=seed, verbose=verbose)
 
-        s, ts = get_source_targets(X_sample, y_sample, source, target, verbose=verbose)
-        graph = make_knn_graph_with_dummy_target(X_sample, neighbors)
+        s, ts = get_source_targets(X, y, source, target, verbose=verbose)
 
         kde = KernelDensity()
-        kde.fit(X_sample)
+        kde.fit(X)
 
-        paths = shortest_path(
-            graph,
-            s,
+        graph = make_knn_graph_with_dummy_target(
+            X,
+            neighbors,
             ts,
-            partial(kde_fn, X_sample, kde),
-            verbose=verbose,
+            partial(kde_fn, X, kde),
+            key=key,
         )
 
-        dir = Path("images")
-        dir.mkdir(exist_ok=True, parents=True)
-        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        if verbose:
+            print("Starting Bellman-Ford algorithm...")
 
-        for i, path in enumerate(paths):
-            name = f"mnist-{stamp}-{source}-{target}-{i}.png"
-            plot_images(X_sample, path, file=dir / name, verbose=verbose)
+        path = shortest_path(graph, s, samples, key=key)
 
-    X, y = load_dataframe(verbose=verbose)
+        if verbose:
+            print("Bellman-Ford algorithm finished!")
 
+        if path:
+            stamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+            dir = Path("images/mnist_face")
+            dir.mkdir(exist_ok=True, parents=True)
+            plot_images(
+                X,
+                path,
+                file=dir / f"{stamp}-{source}-{target}.png",
+                verbose=verbose,
+            )
+
+    key = "cost"
+    X_raw, y_raw = load_dataframe(verbose=verbose)
     fire_cmd(face, "MNIST-Face")
 
 
