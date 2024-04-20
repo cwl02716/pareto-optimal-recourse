@@ -4,8 +4,8 @@ from typing import Any
 
 import pandas as pd
 import sklearn
-from algorithm import backtracking, make_knn_graph, recourse
 from adult_helper import load_dataframe, select_rows_by_immutables
+from algorithm import backtracking, make_knn_graph_with_dummy_target, recourse
 from matplotlib import pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
@@ -119,7 +119,7 @@ def main(
 
     ts = (y == 1).to_numpy().nonzero()[0].tolist()
 
-    graph = make_knn_graph(X, neighbors)
+    graph = make_knn_graph_with_dummy_target(X, neighbors)
 
     dists = recourse(
         graph,

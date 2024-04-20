@@ -5,31 +5,23 @@ from typing import Callable
 
 import fire
 import igraph as ig
-import numpy as np
 import pandas as pd
 import sklearn
-from algorithm import make_knn_graph
-from mnist_helper import fire_cmd, get_sample, load_dataframe, plot_images
+from algorithm import make_knn_graph_with_dummy_target
+from mnist_helper import (
+    fire_cmd,
+    get_sample,
+    get_source_targets,
+    load_dataframe,
+    plot_images,
+)
+from sklearn.neighbors import KernelDensity
 
 sklearn.set_config(transform_output="pandas")
 
 
-def get_source_targets(
-    X: pd.DataFrame, y: pd.Series, source: int, target: int, *, verbose: bool = False
-) -> tuple[int, list[int]]:
-    s = X[y == str(source)].index[0]
-    ts = X[y == str(target)].index.tolist()
-    if verbose:
-        print(f"Source: {s}, Targets: {ts[:5]} ...")
-    return s, ts
-
-
-def l2_fn(df: pd.DataFrame, i: int, j: int) -> float:
-    a = df.iloc[i]
-    b = df.iloc[j]
-    x = np.subtract(a, b)
-    l2 = np.linalg.norm(x, 2, 0)
-    return l2
+def kde_fn(df: pd.DataFrame, kde: KernelDensity, i: int, j: int) -> float:
+    return kde.score_samples(df.iloc[[j]]).item()
 
 
 def shortest_path(
@@ -55,20 +47,22 @@ def main(verbose: bool = True) -> None:
         target: int,
         samples: int = 256,
         neighbors: int = 4,
-        limit: int = 8,
         *,
         seed: int = 0,
     ) -> None:
         X_sample, y_sample = get_sample(X, y, samples, seed=seed, verbose=verbose)  # type: ignore
 
         s, ts = get_source_targets(X_sample, y_sample, source, target, verbose=verbose)
-        graph = make_knn_graph(X_sample, neighbors)
+        graph = make_knn_graph_with_dummy_target(X_sample, neighbors)
+
+        kde = KernelDensity()
+        kde.fit(X_sample)
 
         paths = shortest_path(
             graph,
             s,
             ts,
-            partial(l2_fn, X_sample),
+            partial(kde_fn, X_sample, kde),
             verbose=verbose,
         )
 

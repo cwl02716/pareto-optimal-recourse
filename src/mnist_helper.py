@@ -6,6 +6,7 @@ import fire
 import pandas as pd
 from fire.core import FireExit
 from matplotlib import pyplot as plt
+from matplotlib.axes import Axes
 from sklearn.datasets import fetch_openml
 from sklearn.preprocessing import MinMaxScaler
 
@@ -29,16 +30,22 @@ def plot_images(
     file: PathLike[str] | None,
     verbose: bool,
 ) -> None:
-    fig, axes = plt.subplots(
-        1,
-        len(indices),
+    n = len(indices)
+    cols = 5
+    fig, _axes = plt.subplots(
+        n // cols + (n % cols > 0),
+        cols,
         layout="tight",
-        squeeze=False,
         subplot_kw={"xticks": [], "yticks": []},
     )
-    axes = axes[0]
-    for ax, i in zip(axes, indices):
-        ax.imshow(df.iloc[i].to_numpy().reshape(28, 28), cmap="gray")
+    axes: list[Axes] = _axes.ravel().tolist()
+
+    for ax, x in zip(axes, df.iloc[indices].to_numpy().reshape(n, 28, 28)):
+        ax.imshow(x, cmap="gray")
+
+    for ax in axes:
+        ax.set_axis_off()
+
     if file is None:
         plt.show()
     else:
@@ -73,3 +80,19 @@ def fire_cmd(component: Any, name: str | None = None) -> None:
             traceback.print_exc()
         finally:
             print()
+
+
+def get_source_targets(
+    X: pd.DataFrame,
+    y: pd.Series,
+    source: int,
+    target: int,
+    *,
+    show_n: int = 5,
+    verbose: bool = False,
+) -> tuple[int, list[int]]:
+    s = X[y == source].index[0]
+    ts = X[y == target].index.tolist()
+    if verbose:
+        print(f"Source: {s}, Targets: {ts[:show_n]} ...")
+    return s, ts

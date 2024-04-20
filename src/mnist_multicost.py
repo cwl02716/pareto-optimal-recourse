@@ -6,39 +6,31 @@ import fire
 import numpy as np
 import pandas as pd
 import sklearn
-from algorithm import backtracking, make_knn_graph, recourse
-from mnist_helper import fire_cmd, get_sample, load_dataframe, plot_images
+from algorithm import (
+    AdditionCost,
+    MaximumCost,
+    MultiCost,
+    backtracking,
+    make_knn_graph_with_dummy_target,
+    multicost_shortest_paths,
+)
+from mnist_helper import (
+    fire_cmd,
+    get_sample,
+    get_source_targets,
+    load_dataframe,
+    plot_images,
+)
 
 sklearn.set_config(transform_output="pandas")
 
 
-def get_source_targets(
-    X: pd.DataFrame,
-    y: pd.Series,
-    source: int,
-    target: int,
-    *,
-    verbose: bool = False,
-) -> tuple[int, list[int]]:
-    s = X[y == source].index[0]
-    ts = X[y == target].index.tolist()
-    if verbose:
-        print(f"Source: {s}, Targets: {ts[:5]} ...")
-    return s, ts
-
-
-def multi_costs_fn(
-    X: pd.DataFrame, y: pd.Series, i: int, j: int
-) -> tuple[float, float]:
+def multi_costs_fn(X: pd.DataFrame, y: pd.Series, i: int, j: int) -> MultiCost:
     a = X.iloc[i]
     b = X.iloc[j]
-    l1 = (y[j] - y[i]).item() ** 2
-    x = np.minimum.reduce((a, b))
-    sum_of_diff = x.sum()
-    np.maximum.reduce((a, b), out=x)
-    sum_of_max = x.sum()
-    l2 = sum_of_diff / sum_of_max
-    return l1, l2
+    l1 = abs(y[j].item() - y[i].item())
+    l2 = np.linalg.norm(a - b, 2).item()
+    return MultiCost((MaximumCost(l1), AdditionCost(l2)))
 
 
 def main(verbose: bool = True) -> None:
@@ -51,19 +43,26 @@ def main(verbose: bool = True) -> None:
         *,
         seed: int = 0,
     ) -> None:
-        X_sample, y_sample = get_sample(X, y, samples, seed=seed, verbose=verbose)
-        s, ts = get_source_targets(X_sample, y_sample, source, target, verbose=verbose)
-        graph = make_knn_graph(X_sample, neighbors)
+        X, y = get_sample(X_raw, y_raw, samples, seed=seed, verbose=verbose)
 
-        dists = recourse(
-            graph,
-            s,
+        s, ts = get_source_targets(X, y, source, target, verbose=verbose)
+
+        graph = make_knn_graph_with_dummy_target(
+            X,
+            neighbors,
             ts,
-            partial(multi_costs_fn, X_sample, y_sample),
-            limit,
+            partial(multi_costs_fn, X, y),
             key=key,
-            verbose=verbose,
         )
+
+        if verbose:
+            print("Starting recourse algorithm...")
+
+        dists = multicost_shortest_paths(graph, s, limit, key=key, verbose=verbose)
+
+        if verbose:
+            print("Recourse algorithm finished!")
+
         paths = backtracking(
             graph,
             dists,
@@ -73,16 +72,16 @@ def main(verbose: bool = True) -> None:
             verbose=verbose,
         )
 
-        dir = Path("images/mnist_multicost")
-        dir.mkdir(exist_ok=True, parents=True)
-        stamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+        if paths:
+            stamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+            dir = Path(f"images/mnist_multicost/{stamp}-{source}-{target}")
+            dir.mkdir(exist_ok=True, parents=True)
 
-        for i, path in enumerate(paths):
-            name = f"{stamp}-{source}-{target}-{i}.png"
-            plot_images(X_sample, path, file=dir / name, verbose=verbose)
+            for i, path in enumerate(paths):
+                plot_images(X, path, file=dir / f"{i}.png", verbose=verbose)
 
     key = "cost"
-    X, y = load_dataframe(verbose=verbose)
+    X_raw, y_raw = load_dataframe(verbose=verbose)
     fire_cmd(recourse_mnist, "MNIST-MultiCost")
 
 
