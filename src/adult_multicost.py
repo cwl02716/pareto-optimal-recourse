@@ -1,11 +1,16 @@
 import math
 from functools import partial
+from warnings import warn
 
 import fire
 import pandas as pd
 import seaborn as sns
 import sklearn
-from helper.adult import load_dataframe, select_rows_by_immutables
+from sklearn.linear_model import LogisticRegression
+from helper.adult import (
+    load_dataframe,
+    select_actionable,
+)
 from helper.algorithm import (
     AdditionCost,
     MultiCost,
@@ -14,23 +19,14 @@ from helper.algorithm import (
     multicost_shortest_paths,
 )
 from helper.cmd import fire_cmd
-from helper.common import get_sample
+from helper.common import select_by_indices, select_by_mask, select_samples
 from matplotlib import pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import StandardScaler
 
-PATH = "dataset/50Ktrain.csv"
-
-DROPS = ["fnlwgt", "education", "marital-status", "relationship", "occupation"]
-
-IMMUTABLES = ["race", "sex", "native-country"]
-
-YCOL = "50K"
-
 sklearn.set_config(transform_output="pandas")
 sns.set_style("white")
 sns.set_context("paper")
-# sns.set_palette("Spectral")
 
 
 def multi_costs_fn(X: pd.DataFrame, i: int, j: int) -> MultiCost:
@@ -76,7 +72,20 @@ def plot_images(
     fig, ax = plt.subplots()
     X_2d: pd.DataFrame = component.transform(X)  # type: ignore
     ft1, ft2 = component.get_feature_names_out()
-
+    sns.scatterplot(
+        X_2d,
+        x=ft1,
+        y=ft2,
+        hue=y,
+        hue_norm=(0, 1),
+        size=y,
+        sizes=(8, 24),
+        size_order=(1, 0),
+        ax=ax,
+        palette="coolwarm",
+        alpha=0.8,
+        zorder=len(paths) + 8,
+    )
     for i, (path, color) in enumerate(zip(paths, sns.color_palette("bright"))):
         X_path = X_2d.iloc[path]
         sns.lineplot(
@@ -89,27 +98,6 @@ def plot_images(
             color=color,
             alpha=0.8,
         )
-
-    # Remove outliers
-    scaler = StandardScaler()
-    X_std: pd.DataFrame = scaler.fit_transform(X_2d)  # type: ignore
-    mask = (X_std.abs() <= 2).all(axis=1)
-    X_2d_masked = X_2d[mask]
-    y_masked = y[mask]
-
-    sns.scatterplot(
-        X_2d_masked,
-        x=ft1,
-        y=ft2,
-        hue=y_masked,
-        hue_norm=(0, 1),
-        size=y_masked,
-        sizes=(12, 18),
-        size_order=(1, 0),
-        ax=ax,
-        alpha=0.6,
-        palette="coolwarm",
-    )
     ax.set_xlabel(ax.get_xlabel().upper())
     ax.set_ylabel(ax.get_ylabel().upper())
     plt.show()
@@ -117,55 +105,97 @@ def plot_images(
 
 def main(verbose: bool = True) -> None:
     def recourse_adult(
+        index: int,
+        source: int = 0,
         samples: int = 256,
         neighbors: int = 4,
         limit: int = 8,
         *,
         seed: int = 0,
     ) -> None:
-        X, y = select_rows_by_immutables(X_raw, y_raw, seed, IMMUTABLES)
-
-        X, y = get_sample(
-            X,
-            y,
-            samples,
-            seed=seed,
-            verbose=verbose,
-            keep_first=True,
+        X, y, X_std = select_actionable(
+            X_raw,
+            y_raw,
+            X_raw_std,
+            index=index,
         )
 
-        scaler = StandardScaler()
-        X_scaled: pd.DataFrame = scaler.fit_transform(X)  # type: ignore
+        X, y, X_std = select_samples(
+            X,
+            y,
+            X_std,
+            samples=samples,
+            seed=seed,
+            verbose=verbose,
+        )
 
-        ts = (y == 1).to_numpy().nonzero()[0].tolist()
+        model = LogisticRegression(random_state=seed)
+        model.fit(X_std, y)
+        X, y, X_std = select_by_indices(
+            X,
+            y,
+            X_std,
+            indices=model.predict_proba(X_std)[:, 1].argsort(),
+        )
+
+        targets = (y == 1).to_numpy().nonzero()[0].tolist()
 
         graph = make_knn_graph_with_dummy_target(
-            X_scaled,
+            X_std,
             neighbors,
-            ts,
+            targets,
             partial(multi_costs_fn, X),
             key=key,
         )
 
-        dists = multicost_shortest_paths(graph, 0, limit, key=key, verbose=verbose)
-
-        paths = backtracking(
+        dists = multicost_shortest_paths(
             graph,
-            dists,
-            0,
-            samples,
+            source,
+            limit,
             key=key,
             verbose=verbose,
         )
 
-        component = PCA(n_components=2)
-        component.fit(X_scaled, y)
-        plot_images(X_scaled, y, paths, component)
+        paths = backtracking(
+            graph,
+            dists,
+            source,
+            graph.vcount() - 1,
+            key=key,
+            verbose=verbose,
+        )
+
+        if paths:
+            for path in paths:
+                print(X_raw.loc[X.index[path]])
+
+            pca = PCA(n_components=2)
+            pca.fit(X_std)
+            plot_images(X_std, y, paths, pca)
+        else:
+            warn("No paths found!")
 
     key = "cost"
-    df_raw = load_dataframe(PATH, DROPS)
-    X_raw = df_raw.drop(columns=YCOL)
-    y_raw = df_raw[YCOL]
+    X_raw, y_raw = load_dataframe(verbose=verbose)
+
+    scaler = StandardScaler()
+    X_raw_std: pd.DataFrame = scaler.fit_transform(X_raw)  # type: ignore
+    X_raw, y_raw, X_raw_std = select_by_mask(
+        X_raw,
+        y_raw,
+        X_raw_std,
+        mask=(X_raw_std.abs() <= 3).all(1).to_numpy(),
+    )
+
+    model = LogisticRegression(random_state=0)
+    model.fit(X_raw_std, y_raw)
+    X_raw, y_raw, X_raw_std = select_by_indices(
+        X_raw,
+        y_raw,
+        X_raw_std,
+        indices=model.predict_proba(X_raw_std)[:, 1].argsort(),
+    )
+
     fire_cmd(recourse_adult, "Adult-MultiCost")
 
 

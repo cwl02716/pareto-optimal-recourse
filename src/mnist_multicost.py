@@ -15,7 +15,7 @@ from helper.algorithm import (
     multicost_shortest_paths,
 )
 from helper.cmd import fire_cmd
-from helper.common import get_sample
+from helper.common import select_samples
 from helper.mnist import (
     get_source_targets,
     load_dataframe,
@@ -43,7 +43,7 @@ def main(verbose: bool = True) -> None:
         *,
         seed: int = 0,
     ) -> None:
-        X, y = get_sample(X_raw, y_raw, samples, seed=seed, verbose=verbose)
+        X, y = select_samples(X_raw, y_raw, samples=samples, seed=seed, verbose=verbose)
 
         s, ts = get_source_targets(X, y, source, target, verbose=verbose)
 
