@@ -2,10 +2,18 @@ import math
 from functools import partial
 from typing import Any
 
+import fire
 import pandas as pd
 import sklearn
-from adult_helper import load_dataframe, select_rows_by_immutables
-from algorithm import backtracking, make_knn_graph_with_dummy_target, recourse
+from helper.adult import load_dataframe, select_rows_by_immutables
+from helper.algorithm import (
+    AdditionCost,
+    MultiCost,
+    backtracking,
+    make_knn_graph_with_dummy_target,
+    multicost_shortest_paths,
+)
+from helper.cmd import fire_cmd
 from matplotlib import pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
@@ -25,7 +33,7 @@ def transform(
     df: pd.DataFrame,
     index: int,
     size: int,
-    k: int,
+    neighbors: int,
     *,
     seed: Any = None,
 ) -> tuple[MinMaxScaler, pd.DataFrame, int]:
@@ -40,7 +48,7 @@ def transform(
     kmeans.fit(X_scaled)
     X_small = pd.DataFrame(kmeans.cluster_centers_, columns=X.columns)
 
-    knn = KNeighborsClassifier(k)
+    knn = KNeighborsClassifier(neighbors)
     knn.fit(X_scaled, y)
 
     y_small = pd.DataFrame(knn.predict(X_small), columns=[YCOL])
@@ -50,7 +58,7 @@ def transform(
     return scaler, df_small, index_small
 
 
-def cost_fn(df: pd.DataFrame, i: int, j: int) -> tuple[float, float]:
+def multi_costs_fn(df: pd.DataFrame, i: int, j: int) -> MultiCost:
     time = 0.0
     payment = 0.0
 
@@ -80,7 +88,7 @@ def cost_fn(df: pd.DataFrame, i: int, j: int) -> tuple[float, float]:
     m -= b["workclass"] / (b["hours-per-week"] + eps)
     payment += 1.0 / (1.0 + 1.44 * math.exp(m))  # add bias
 
-    return time, payment
+    return MultiCost((AdditionCost(time), AdditionCost(payment)))
 
 
 def show_path(
@@ -99,55 +107,63 @@ def show_path(
     plt.show()
 
 
-def main(
-    index: int,
-    samples: int,
-    neighbors: int,
-    limit: int,
-    *,
-    verbose: bool = False,
-    seed: int = 0,
-) -> None:
-    df = load_dataframe(PATH, DROPS)
-
-    df = select_rows_by_immutables(df, index, IMMUTABLES)
-
-    scalar, df_small, s = transform(df, index, samples, neighbors, seed=seed)
-
-    X = df_small.drop(columns=YCOL)
-    y = df_small[YCOL]
-
-    ts = (y == 1).to_numpy().nonzero()[0].tolist()
-
-    graph = make_knn_graph_with_dummy_target(X, neighbors)
-
-    dists = recourse(
-        graph,
-        s,
-        ts,
-        partial(cost_fn, df_small),
-        limit,
-        key="cost",
-        verbose=verbose,
-    )
-
-    paths = backtracking(
-        graph,
-        dists,
-        s,
-        samples,
-        key="cost",
-        verbose=verbose,
-    )
-
-    pca = PCA(2)
-    pca.fit(X)
-
-    for path in paths:
-        show_path(df_small, path, pca)
-
-
 sklearn.set_config(transform_output="pandas")
 
+
+def main(verbose: bool = True) -> None:
+    def recourse_mnist(
+        index: int,
+        samples: int,
+        neighbors: int,
+        limit: int,
+        *,
+        seed: int = 0,
+    ) -> None:
+        df = select_rows_by_immutables(df_raw, index, IMMUTABLES)
+
+        X = df.drop(columns=YCOL)
+        y = df[YCOL]
+
+        scaler = MinMaxScaler()
+        scaler.fit(X)
+
+        X = scaler.transform(X)
+
+        scalar, df_small, s = transform(df, index, samples, neighbors, seed=seed)
+        X = df_small.drop(columns=YCOL)
+        y = df_small[YCOL]
+
+        ts = (y == 1).to_numpy().nonzero()[0].tolist()
+
+        graph = make_knn_graph_with_dummy_target(
+            X,
+            neighbors,
+            ts,
+            partial(multi_costs_fn, df_small),
+            key=key,
+        )
+
+        dists = multicost_shortest_paths(graph, s, limit, key=key, verbose=verbose)
+
+        paths = backtracking(
+            graph,
+            dists,
+            s,
+            samples,
+            key=key,
+            verbose=verbose,
+        )
+
+        pca = PCA(2)
+        pca.fit(X)
+
+        for path in paths:
+            show_path(df_small, path, pca)
+
+    key = "cost"
+    df_raw = load_dataframe(PATH, DROPS)
+    fire_cmd(recourse_mnist, "Adult-MultiCost")
+
+
 if __name__ == "__main__":
-    main(100, 256, 3, 10, verbose=True, seed=42)
+    fire.Fire(main)

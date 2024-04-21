@@ -1,26 +1,10 @@
-import traceback
 from os import PathLike
-from typing import Any
 
-import fire
 import pandas as pd
-from fire.core import FireExit
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from sklearn.datasets import fetch_openml
 from sklearn.preprocessing import MinMaxScaler
-
-
-def get_sample(
-    X: pd.DataFrame, y: pd.Series, size: int, *, seed: int, verbose: bool
-) -> tuple[pd.DataFrame, pd.Series]:
-    X_sample = X.sample(size, random_state=seed)
-    y_sample = y[X_sample.index]
-    X_sample.reset_index(drop=True, inplace=True)
-    y_sample.reset_index(drop=True, inplace=True)
-    if verbose:
-        print(f"Sampled dataset with size {size}")
-    return X_sample, y_sample
 
 
 def plot_images(
@@ -39,13 +23,10 @@ def plot_images(
         subplot_kw={"xticks": [], "yticks": []},
     )
     axes: list[Axes] = _axes.ravel().tolist()
-
     for ax, x in zip(axes, df.iloc[indices].to_numpy().reshape(n, 28, 28)):
         ax.imshow(x, cmap="gray")
-
     for ax in axes:
         ax.set_axis_off()
-
     if file is None:
         plt.show()
     else:
@@ -65,21 +46,6 @@ def load_dataframe(*, verbose: bool) -> tuple[pd.DataFrame, pd.Series]:
     if verbose:
         print("Fetching MNIST dataset finished!")
     return X, y  # type: ignore
-
-
-def fire_cmd(component: Any, name: str | None = None) -> None:
-    prompt = "> "
-    while True:
-        try:
-            fire.Fire(component, input(prompt), name)
-        except FireExit:
-            pass
-        except EOFError:
-            break
-        except Exception:
-            traceback.print_exc()
-        finally:
-            print()
 
 
 def get_source_targets(

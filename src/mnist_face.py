@@ -6,10 +6,10 @@ import fire
 import igraph as ig
 import pandas as pd
 import sklearn
-from algorithm import AdditionCost, make_knn_graph_with_dummy_target
-from mnist_helper import (
-    fire_cmd,
-    get_sample,
+from helper.algorithm import AdditionCost, make_knn_graph_with_dummy_target
+from helper.cmd import fire_cmd
+from helper.common import get_sample
+from helper.mnist import (
     get_source_targets,
     load_dataframe,
     plot_images,

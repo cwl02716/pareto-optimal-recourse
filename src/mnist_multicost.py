@@ -6,7 +6,7 @@ import fire
 import numpy as np
 import pandas as pd
 import sklearn
-from algorithm import (
+from helper.algorithm import (
     AdditionCost,
     MaximumCost,
     MultiCost,
@@ -14,9 +14,9 @@ from algorithm import (
     make_knn_graph_with_dummy_target,
     multicost_shortest_paths,
 )
-from mnist_helper import (
-    fire_cmd,
-    get_sample,
+from helper.cmd import fire_cmd
+from helper.common import get_sample
+from helper.mnist import (
     get_source_targets,
     load_dataframe,
     plot_images,
