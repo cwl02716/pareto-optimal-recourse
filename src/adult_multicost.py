@@ -1,6 +1,6 @@
-from calendar import c
 import math
 from functools import partial
+from typing import Protocol
 from warnings import warn
 
 import fire
@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import sklearn
+from sklearn.linear_model import LogisticRegression
+from sklearn.neural_network import MLPClassifier
 from helper.adult import (
     load_dataframe,
     select_actionable,
@@ -21,11 +23,12 @@ from helper.algorithm import (
 )
 from helper.cmd import fire_cmd
 from helper.common import select_indices, select_mask, select_samples
-from matplotlib import colors, patheffects, pyplot as plt, ticker
+from matplotlib import patheffects
+from matplotlib import pyplot as plt
 from numpy.typing import NDArray
 from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import StandardScaler
-from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
 
 sklearn.set_config(transform_output="pandas")
 sns.set_style("white")
@@ -33,11 +36,15 @@ sns.set_context("paper")
 sns.set_palette("bright")
 
 
+class SupportsProba(Protocol):
+    def predict_proba(self, X) -> NDArray: ...
+
+
 def non_outliers_mask(X: pd.DataFrame, threshold: float) -> NDArray:
     return (X.abs() <= threshold).all(1).to_numpy()
 
 
-def proba_argsort(model: LogisticRegression, X: pd.DataFrame) -> NDArray:
+def proba_argsort(model: SupportsProba, X: pd.DataFrame) -> NDArray:
     return model.predict_proba(X)[:, 1].argsort()
 
 
@@ -83,7 +90,7 @@ def plot_images(
     y: pd.Series,
     paths: list[list[int]],
     component: PCA,
-    model: LogisticRegression,
+    model: SupportsProba,
 ) -> None:
     ax: plt.Axes  # type: ignore
     fig, ax = plt.subplots()
@@ -146,7 +153,6 @@ def plot_images(
             lw=2,
             path_effects=[
                 patheffects.SimpleLineShadow((0.5, -0.5), "k", 0.5),
-                # patheffects.Stroke(linewidth=3, foreground='w'),
                 patheffects.Normal(),
             ],
             alpha=0.8,
@@ -175,7 +181,7 @@ def main(verbose: bool = True) -> None:
             X, y, X_std, samples=samples, seed=seed, verbose=verbose
         )
 
-        model = LogisticRegression(random_state=seed)
+        model = MLPClassifier((4, 4), learning_rate_init=0.03, random_state=seed)
         model.fit(X_std, y)
         X, y, X_std = select_indices(X, y, X_std, indices=proba_argsort(model, X_std))
 
@@ -205,16 +211,15 @@ def main(verbose: bool = True) -> None:
             verbose=verbose,
         )
 
-        if paths:
-            for path in paths:
-                print(X_raw.loc[X.index[path]])
-
-            pca = PCA(n_components=2)
-            pca.fit(X_std)
-            plot_images(X_std, y, paths, pca, model)
-
-        else:
+        if not paths:
             warn("No paths found!")
+
+        for path in paths:
+            print(X_raw.loc[X.index[path]])
+
+        pca = PCA(n_components=2)
+        pca.fit(X_std)
+        plot_images(X_std, y, paths, pca, model)
 
     key = "cost"
     X_raw, y_raw = load_dataframe(verbose=verbose)
@@ -225,10 +230,10 @@ def main(verbose: bool = True) -> None:
         X_raw,
         y_raw,
         X_raw_std,
-        mask=non_outliers_mask(X_raw_std, 3),
+        mask=non_outliers_mask(X_raw_std, 2.5),
     )
 
-    model = LogisticRegression(random_state=42)
+    model = RandomForestClassifier(random_state=42)
     model.fit(X_raw_std, y_raw)
     X_raw, y_raw, X_raw_std = select_indices(
         X_raw,
