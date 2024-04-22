@@ -1,9 +1,9 @@
 from pathlib import Path
-from typing import Any, Unpack
+from typing import Any
 
 import pandas as pd
 
-from helper.common import select_by_mask
+from helper.common import select_mask
 
 PATH = "dataset/50Ktrain.csv"
 DROPS = ["fnlwgt", "education", "marital-status", "relationship"]
@@ -31,12 +31,15 @@ def load_dataframe(
 
 def select_actionable[*T](
     X: pd.DataFrame,
-    *args: Unpack[T],
+    *args: *T,
     index: int,
+    verbose: bool,
     immutables: list[Any] = IMMUTABLES,
-) -> tuple[pd.DataFrame, Unpack[T]]:
+) -> tuple[pd.DataFrame, *T]:
     X_act = X.drop(columns=immutables)
     X_imm = X[immutables]
     mask = X_imm.eq(X_imm.iloc[index]).all(1).to_numpy()
-    res = select_by_mask(X_act, *args, mask=mask)
+    res = select_mask(X_act, *args, mask=mask)
+    if verbose:
+        print(f"Actionable dataset with size {res[0].shape[0]}")
     return res

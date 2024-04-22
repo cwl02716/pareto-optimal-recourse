@@ -55,7 +55,7 @@ def get_source_targets(
     target: int,
     *,
     show_n: int = 5,
-    verbose: bool = False,
+    verbose: bool,
 ) -> tuple[int, list[int]]:
     s = X[y == source].index[0]
     ts = X[y == target].index.tolist()

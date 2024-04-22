@@ -10,7 +10,9 @@ def fire_cmd(component: Any, name: str | None = None) -> None:
     while True:
         try:
             fire.Fire(component, input(prompt), name)
-        except (FireExit, EOFError):
+        except FireExit:
+            break
+        except EOFError:
             break
         except Exception:
             traceback.print_exc()

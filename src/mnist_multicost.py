@@ -67,7 +67,6 @@ def main(verbose: bool = True) -> None:
             graph,
             dists,
             s,
-            samples,
             key=key,
             verbose=verbose,
         )

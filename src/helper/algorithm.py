@@ -152,11 +152,11 @@ def backtracking(
     graph: ig.Graph,
     dist_list: list[list[tuple[SupportsIndex, MultiCost]]],
     s: int,
-    t: int,
     *,
     key: str,
     verbose: bool,
 ) -> list[list[int]]:
+    t = graph.vcount() - 1
     paths = []
     for u, cost_sv in dist_list[t]:
         path = []
