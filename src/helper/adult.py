@@ -1,8 +1,15 @@
 from pathlib import Path
 from typing import Any, Protocol
+from typing import Any, Protocol
 
 import numpy as np
+import numpy as np
 import pandas as pd
+import seaborn as sns
+from matplotlib import patheffects
+from matplotlib import pyplot as plt
+from numpy.typing import NDArray
+from sklearn.decomposition import PCA
 import seaborn as sns
 from matplotlib import patheffects
 from matplotlib import pyplot as plt
@@ -15,6 +22,10 @@ PATH = "dataset/50Ktrain.csv"
 DROPS = ["fnlwgt", "education", "marital-status", "relationship"]
 IMMUTABLES = ["sex", "race", "occupation", "native-country"]
 YCOL = "50K"
+
+
+class SupportsPredictProba(Protocol):
+    def predict_proba(self, X: Any) -> NDArray: ...
 
 
 class SupportsPredictProba(Protocol):
