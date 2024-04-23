@@ -1,5 +1,6 @@
 import math
 from functools import partial
+from typing import SupportsIndex
 from warnings import warn
 
 import fire
@@ -35,16 +36,20 @@ sns.set_context("paper")
 sns.set_palette("bright")
 
 
-def multi_costs_fn(X: pd.DataFrame, i: int, j: int) -> MultiCost:
+def multi_costs_fn(X: pd.DataFrame, cols: tuple[str, str], i: int, j: int) -> MultiCost:
     def cost_fn(a: pd.Series, b: pd.Series, key: str) -> float:
         x = b.at[key] - a.at[key]
         return x if x > 0 else math.inf
 
     a = X.iloc[i]
     b = X.iloc[j]
-    cost_age = cost_fn(a, b, "age")
-    cost_education = cost_fn(a, b, "hours-per-week")
+    cost_age = cost_fn(a, b, cols[0])
+    cost_education = cost_fn(a, b, cols[1])
     return MultiCost((AdditionCost(cost_age), AdditionCost(cost_education)))
+
+
+def final_costs(dists: list[list[tuple[SupportsIndex, MultiCost]]]) -> list[MultiCost]:
+    return [dist[1] for dist in dists[-1]]
 
 
 def main(verbose: bool = True) -> None:
@@ -75,7 +80,7 @@ def main(verbose: bool = True) -> None:
             X_std,
             neighbors,
             targets,
-            partial(multi_costs_fn, X),
+            partial(multi_costs_fn, X, cols),
             key=key,
         )
 
@@ -104,10 +109,21 @@ def main(verbose: bool = True) -> None:
         for path in paths:
             print(X_raw.loc[X.index[path]])
 
-        plot_images(X_std, y, paths, pca, model)
+        costs = final_costs(dists)
+        plot_images(
+            X_std,
+            y,
+            paths,
+            costs,
+            pca,
+            model,
+            title=f"Adult Dataset with Multi-cost ({", ".join(cols)})",
+            samples=64,
+        )
         plt.show()
 
     key = "cost"
+    cols = "age", "hours-per-week"
     X_raw, y_raw = load_dataframe(verbose=verbose)
 
     scaler = StandardScaler()
@@ -116,7 +132,7 @@ def main(verbose: bool = True) -> None:
         X_raw,
         y_raw,
         X_raw_std,
-        mask=non_outliers_mask(X_raw_std, 2.5),
+        mask=non_outliers_mask(X_raw_std, 3.0),
     )
 
     model = RandomForestClassifier(random_state=42)

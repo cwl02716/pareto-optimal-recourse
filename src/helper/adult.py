@@ -1,3 +1,4 @@
+import random
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -34,6 +35,15 @@ def load_dataframe(
     y = df[YCOL]
     if drops:
         X = X.drop(columns=drops)
+    rng = np.random.default_rng(0)
+
+    mask = y.to_numpy() == 1
+    indices = np.nonzero(mask)[0]
+    indices = rng.choice(indices, len(indices) // 2, replace=False)
+    mask[indices] = False
+
+    X, y = select_mask(X, y, mask=~mask)
+
     if verbose:
         print("Reading Adult dataset finished!")
     return X, y
@@ -71,9 +81,30 @@ def plot_images(
     X: pd.DataFrame,
     y: pd.Series,
     paths: list[list[int]],
+    costs: list[Any],
     component: PCA,
     model: SupportsPredictProba,
+    *,
+    title: str = "",
+    samples: int = 1024,
 ) -> None:
+    paths = [X.index[path].tolist() for path in paths]
+
+    if samples < X.shape[0]:
+        idx_set = set(X.index.tolist())
+
+        sample_idx = []
+        for path in paths:
+            sample_idx += path
+
+        idx_set.difference_update(sample_idx)
+
+        rng = random.Random(0)
+        sample_idx += rng.sample(tuple(idx_set), samples - len(sample_idx))
+
+        X = X.loc[sample_idx]
+        y = y.loc[sample_idx]
+
     ax: plt.Axes  # type: ignore
     fig, ax = plt.subplots()
     X_2d: pd.DataFrame = component.transform(X)  # type: ignore
@@ -123,15 +154,15 @@ def plot_images(
     )
     cb.solids.set_alpha(1)  # type: ignore
 
-    for i, path in enumerate(paths):
-        X_path = X_2d.iloc[path]
+    for i, (path, cost) in enumerate(zip(paths, costs)):
+        X_path = X_2d.loc[path]
         sns.lineplot(
             X_path,
             x=ft1,
             y=ft2,
             sort=False,
             ax=ax,
-            label=f"Path {i}",
+            label=f"Path {i} {cost}",
             lw=2,
             path_effects=[
                 patheffects.SimpleLineShadow((0.5, -0.5), "k", 0.5),
@@ -140,5 +171,7 @@ def plot_images(
             alpha=0.8,
         )
 
-    ax.set_xlabel(ax.get_xlabel().upper())
-    ax.set_ylabel(ax.get_ylabel().upper())
+    ax.set_xlabel("$PCA_0$")
+    ax.set_ylabel("$PCA_1$")
+    if title:
+        ax.set_title(title)
