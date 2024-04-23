@@ -4,6 +4,7 @@ from typing import SupportsIndex
 from warnings import warn
 
 import fire
+import numpy as np
 import pandas as pd
 import seaborn as sns
 import sklearn
@@ -12,7 +13,6 @@ from helper.adult import (
     load_dataframe,
     non_outliers_mask,
     plot_images,
-    proba_argsort,
     select_actionable,
 )
 from helper.algorithm import (
@@ -39,13 +39,13 @@ sns.set_palette("bright")
 def multi_costs_fn(X: pd.DataFrame, cols: tuple[str, str], i: int, j: int) -> MultiCost:
     def cost_fn(a: pd.Series, b: pd.Series, key: str) -> float:
         x = b.at[key] - a.at[key]
-        return x if x > 0 else math.inf
+        return abs(x)
 
     a = X.iloc[i]
     b = X.iloc[j]
-    cost_age = cost_fn(a, b, cols[0])
-    cost_education = cost_fn(a, b, cols[1])
-    return MultiCost((AdditionCost(cost_age), AdditionCost(cost_education)))
+    cost_0 = cost_fn(a, b, cols[0])
+    cost_1 = cost_fn(a, b, cols[1])
+    return MultiCost((AdditionCost(cost_0), AdditionCost(cost_1)))
 
 
 def final_costs(dists: list[list[tuple[SupportsIndex, MultiCost]]]) -> list[MultiCost]:
@@ -57,7 +57,7 @@ def main(verbose: bool = True) -> None:
         index: int,
         source: int = 0,
         samples: int = 256,
-        neighbors: int = 4,
+        neighbors: int = 8,
         limit: int = 8,
         *,
         seed: int = 0,
@@ -70,11 +70,17 @@ def main(verbose: bool = True) -> None:
             X, y, X_std, samples=samples, seed=seed, verbose=verbose
         )
 
-        model = MLPClassifier((4, 4), learning_rate_init=0.03, random_state=seed)
+        model = MLPClassifier(learning_rate_init=0.01, max_iter=1024, random_state=seed)
         model.fit(X_std, y)
-        X, y, X_std = select_indices(X, y, X_std, indices=proba_argsort(model, X_std))
 
-        targets = get_targets(y, 1)
+        X, y, X_std = select_indices(
+            X,
+            y,
+            X_std,
+            indices=model.predict_proba(X_std)[:, 1].argsort(),
+        )
+
+        targets = get_targets(y.to_numpy(), 1)
 
         graph = make_knn_graph_with_dummy_target(
             X_std,
@@ -118,12 +124,12 @@ def main(verbose: bool = True) -> None:
             pca,
             model,
             title=f"Adult Dataset with Multi-cost ({", ".join(cols)})",
-            samples=64,
+            n_scatter=128,
         )
         plt.show()
 
     key = "cost"
-    cols = "age", "hours-per-week"
+    cols = "age", "education-num"
     X_raw, y_raw = load_dataframe(verbose=verbose)
 
     scaler = StandardScaler()
@@ -137,12 +143,21 @@ def main(verbose: bool = True) -> None:
 
     model = RandomForestClassifier(random_state=42)
     model.fit(X_raw_std, y_raw)
+
     X_raw, y_raw, X_raw_std = select_indices(
         X_raw,
         y_raw,
         X_raw_std,
-        indices=proba_argsort(model, X_raw_std),
+        indices=model.predict_proba(X_raw_std)[:, 1].argsort(),
     )
+
+    # pca = PCA(n_components=2)
+    # pca.fit(X_raw_std)
+    # print(pca.feature_names_in_)
+    # print(pca.components_)
+    # i = np.abs(pca.components_).argsort(1)
+    # print(i)
+    # print(pca.feature_names_in_[i])
 
     fire_cmd(recourse_adult, "Adult-MultiCost")
 

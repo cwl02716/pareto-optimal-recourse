@@ -35,15 +35,6 @@ def load_dataframe(
     y = df[YCOL]
     if drops:
         X = X.drop(columns=drops)
-    rng = np.random.default_rng(0)
-
-    mask = y.to_numpy() == 1
-    indices = np.nonzero(mask)[0]
-    indices = rng.choice(indices, len(indices) // 2, replace=False)
-    mask[indices] = False
-
-    X, y = select_mask(X, y, mask=~mask)
-
     if verbose:
         print("Reading Adult dataset finished!")
     return X, y
@@ -53,12 +44,9 @@ def non_outliers_mask(X: pd.DataFrame, threshold: float) -> NDArray:
     return (X.abs() <= threshold).all(1).to_numpy()
 
 
-def proba_argsort(model: SupportsPredictProba, X: pd.DataFrame) -> NDArray:
-    return model.predict_proba(X)[:, 1].argsort()
 
-
-def get_targets(y: pd.Series, label: int) -> list[int]:
-    return (y == label).to_numpy().nonzero()[0].tolist()
+def get_targets(y: NDArray, threshold: float) -> list[int]:
+    return (y >= threshold).nonzero()[0].tolist()
 
 
 def select_actionable[*T](
@@ -86,11 +74,11 @@ def plot_images(
     model: SupportsPredictProba,
     *,
     title: str = "",
-    samples: int = 1024,
+    n_scatter: int = 1024,
 ) -> None:
     paths = [X.index[path].tolist() for path in paths]
 
-    if samples < X.shape[0]:
+    if n_scatter < X.shape[0]:
         idx_set = set(X.index.tolist())
 
         sample_idx = []
@@ -100,7 +88,7 @@ def plot_images(
         idx_set.difference_update(sample_idx)
 
         rng = random.Random(0)
-        sample_idx += rng.sample(tuple(idx_set), samples - len(sample_idx))
+        sample_idx += rng.sample(tuple(idx_set), n_scatter - len(sample_idx))
 
         X = X.loc[sample_idx]
         y = y.loc[sample_idx]
@@ -141,8 +129,6 @@ def plot_images(
         grid[1],
         y_grid,
         levels=5,
-        vmin=0,
-        vmax=1,
         alpha=1 / 3,
         zorder=0,
         cmap="coolwarm",
