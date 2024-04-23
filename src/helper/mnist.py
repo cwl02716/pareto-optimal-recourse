@@ -40,8 +40,8 @@ def load_dataframe(*, verbose: bool) -> tuple[pd.DataFrame, pd.Series]:
     if verbose:
         print("Starting fetching MNIST dataset...")
     X, y = fetch_openml("mnist_784", return_X_y=True, as_frame=True)
-    scaler = MinMaxScaler()
-    X = scaler.fit_transform(X)  # type: ignore
+    # scaler = MinMaxScaler()
+    # X = scaler.fit_transform(X)  # type: ignore
     y = y.astype(int)  # type: ignore
     if verbose:
         print("Fetching MNIST dataset finished!")

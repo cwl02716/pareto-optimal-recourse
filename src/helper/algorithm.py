@@ -51,7 +51,7 @@ class FloatingCost(Cost[float]):
         return self.value
 
     def __repr__(self) -> str:
-        return format(self.value, ".2g")
+        return format(self.value, ".4g")
 
     def isclose(self, other: Self) -> bool:
         return math.isclose(self.value, other.value)
