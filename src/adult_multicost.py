@@ -36,36 +36,15 @@ sns.set_palette("bright")
 
 
 def multi_costs_fn(X: pd.DataFrame, i: int, j: int) -> MultiCost:
-    time = 0.0
-    payment = 0.0
+    def cost_fn(a: pd.Series, b: pd.Series, key: str) -> float:
+        x = b.at[key] - a.at[key]
+        return x if x > 0 else math.inf
 
     a = X.iloc[i]
     b = X.iloc[j]
-
-    # for age
-    time = max(time, b["age"] - a["age"])
-
-    # education
-    time = max(time, b["education-num"] - a["education-num"])
-
-    # workclass
-    time = max(time, abs(b["workclass"] - a["workclass"]))
-
-    time = max(
-        time,
-        (b["capital-gain"] ** 2)
-        + (b["capital-loss"] ** 2)
-        - (a["capital-gain"] ** 2)
-        - (a["capital-loss"] ** 2),
-    )
-
-    # sigmoid(workclass : hours-per-week)
-    eps = 1e-3
-    m = a["workclass"] / (a["hours-per-week"] + eps)
-    m -= b["workclass"] / (b["hours-per-week"] + eps)
-    payment += 1.0 / (1.0 + 1.44 * math.exp(m))  # add bias
-
-    return MultiCost((AdditionCost(time), AdditionCost(payment)))
+    cost_age = cost_fn(a, b, "age")
+    cost_education = cost_fn(a, b, "hours-per-week")
+    return MultiCost((AdditionCost(cost_age), AdditionCost(cost_education)))
 
 
 def main(verbose: bool = True) -> None:

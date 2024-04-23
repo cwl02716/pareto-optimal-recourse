@@ -109,7 +109,7 @@ def plot_images(
         grid[0],
         grid[1],
         y_grid,
-        levels=10,
+        levels=5,
         vmin=0,
         vmax=1,
         alpha=1 / 3,
