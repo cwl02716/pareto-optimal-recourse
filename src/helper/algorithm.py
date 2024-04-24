@@ -207,3 +207,7 @@ def find_maxima_2d(
             step = (size - 1) / (limit - 1)
             maxima = [maxima[round(i * step)] for i in range(limit)]
     return maxima
+
+
+def final_costs(dists: list[list[tuple[SupportsIndex, MultiCost]]]) -> list[MultiCost]:
+    return [dist[1] for dist in dists[-1]]

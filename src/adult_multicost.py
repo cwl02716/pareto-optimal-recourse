@@ -1,12 +1,10 @@
 from functools import partial
-from typing import SupportsIndex
 from warnings import warn
 
 import fire
 import pandas as pd
 import seaborn as sns
 import sklearn
-from sklearn.ensemble import RandomForestClassifier
 from helper.adult import (
     get_targets,
     load_dataframe,
@@ -18,6 +16,7 @@ from helper.algorithm import (
     AdditionCost,
     MultiCost,
     backtracking,
+    final_costs,
     make_knn_graph_with_dummy_target,
     multicost_shortest_paths,
 )
@@ -26,6 +25,7 @@ from helper.common import select_indices, select_mask, select_samples
 from matplotlib import pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import StandardScaler
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
 
 sklearn.set_config(transform_output="pandas")
@@ -44,10 +44,6 @@ def multi_costs_fn(X: pd.DataFrame, cols: tuple[str, str], i: int, j: int) -> Mu
     cost_0 = cost_fn(a, b, cols[0])
     cost_1 = cost_fn(a, b, cols[1])
     return MultiCost((AdditionCost(cost_0), AdditionCost(cost_1)))
-
-
-def final_costs(dists: list[list[tuple[SupportsIndex, MultiCost]]]) -> list[MultiCost]:
-    return [dist[1] for dist in dists[-1]]
 
 
 def main(verbose: bool = True) -> None:

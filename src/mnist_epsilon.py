@@ -82,21 +82,7 @@ def main(verbose: bool = True) -> None:
         if verbose:
             print("Recourse algorithm finished!")
 
-        paths = backtracking(
-            graph,
-            dists,
-            s,
-            key=key,
-            verbose=verbose,
-        )
-
-        if paths:
-            stamp = datetime.now().strftime("%Y%m%dT%H%M%S")
-            dir = Path(f"images/mnist_epsilon/{stamp}-{source}-{target}")
-            dir.mkdir(exist_ok=True, parents=True)
-
-            for i, path in enumerate(paths):
-                plot_images(X, path, file=dir / f"{i}.png", verbose=verbose)
+        
 
     key = "cost"
     X_raw, y_raw = load_dataframe(verbose=verbose)
