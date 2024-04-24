@@ -44,7 +44,6 @@ def non_outliers_mask(X: pd.DataFrame, threshold: float) -> NDArray:
     return (X.abs() <= threshold).all(1).to_numpy()
 
 
-
 def get_targets(y: NDArray, threshold: float) -> list[int]:
     return (y >= threshold).nonzero()[0].tolist()
 
@@ -97,16 +96,17 @@ def plot_images(
     fig, ax = plt.subplots()
     X_2d: pd.DataFrame = component.transform(X)  # type: ignore
     ft1, ft2 = component.get_feature_names_out()
+    y_label = y > 0.5
     sns.scatterplot(
         X_2d,
         x=ft1,
         y=ft2,
-        hue=y,
+        hue=y_label,
         hue_norm=(0, 1),
-        size=y,
+        size=y_label,
         sizes=(6, 24),
         size_order=(1, 0),
-        style=y,
+        style=y_label,
         ax=ax,
         palette="coolwarm",
         alpha=0.9,
@@ -140,7 +140,7 @@ def plot_images(
     )
     cb.solids.set_alpha(1)  # type: ignore
 
-    for i, (path, cost) in enumerate(zip(paths, costs)):
+    for path, cost in zip(paths, costs):
         X_path = X_2d.loc[path]
         sns.lineplot(
             X_path,
@@ -148,7 +148,7 @@ def plot_images(
             y=ft2,
             sort=False,
             ax=ax,
-            label=f"Path {i} {cost}",
+            label=f"Path {cost}",
             lw=2,
             path_effects=[
                 patheffects.SimpleLineShadow((0.5, -0.5), "k", 0.5),

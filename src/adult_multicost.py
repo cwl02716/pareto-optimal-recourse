@@ -1,13 +1,12 @@
-import math
 from functools import partial
 from typing import SupportsIndex
 from warnings import warn
 
 import fire
-import numpy as np
 import pandas as pd
 import seaborn as sns
 import sklearn
+from sklearn.ensemble import RandomForestClassifier
 from helper.adult import (
     get_targets,
     load_dataframe,
@@ -27,7 +26,6 @@ from helper.common import select_indices, select_mask, select_samples
 from matplotlib import pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import StandardScaler
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
 
 sklearn.set_config(transform_output="pandas")
@@ -56,9 +54,10 @@ def main(verbose: bool = True) -> None:
     def recourse_adult(
         index: int,
         source: int = 0,
-        samples: int = 256,
-        neighbors: int = 8,
+        n_samples: int = 256,
+        k_neighbors: int = 8,
         limit: int = 8,
+        threshold: float = 0.75,
         *,
         seed: int = 0,
     ) -> None:
@@ -67,24 +66,24 @@ def main(verbose: bool = True) -> None:
         )
 
         X, y, X_std = select_samples(
-            X, y, X_std, samples=samples, seed=seed, verbose=verbose
+            X, y, X_std, samples=n_samples, seed=seed, verbose=verbose
         )
 
         model = MLPClassifier(learning_rate_init=0.01, max_iter=1024, random_state=seed)
-        model.fit(X_std, y)
+        model.fit(X_std, y > 0.5)
 
         X, y, X_std = select_indices(
             X,
             y,
             X_std,
-            indices=model.predict_proba(X_std)[:, 1].argsort(),
+            indices=y.to_numpy().argsort(),
         )
 
-        targets = get_targets(y.to_numpy(), 1)
+        targets = get_targets(y.to_numpy(), threshold)
 
         graph = make_knn_graph_with_dummy_target(
             X_std,
-            neighbors,
+            k_neighbors,
             targets,
             partial(multi_costs_fn, X, cols),
             key=key,
@@ -123,7 +122,7 @@ def main(verbose: bool = True) -> None:
             costs,
             pca,
             model,
-            title=f"Adult Dataset with Multi-cost ({", ".join(cols)})",
+            # title=f"Adult Dataset with Multi-cost ({", ".join(cols)})",
             n_scatter=128,
         )
         plt.show()
@@ -138,26 +137,16 @@ def main(verbose: bool = True) -> None:
         X_raw,
         y_raw,
         X_raw_std,
-        mask=non_outliers_mask(X_raw_std, 3.0),
+        mask=non_outliers_mask(X_raw_std, 3),
     )
 
     model = RandomForestClassifier(random_state=42)
     model.fit(X_raw_std, y_raw)
-
-    X_raw, y_raw, X_raw_std = select_indices(
-        X_raw,
-        y_raw,
-        X_raw_std,
-        indices=model.predict_proba(X_raw_std)[:, 1].argsort(),
+    y_raw = pd.Series(
+        model.predict_proba(X_raw_std)[:, 1],
+        index=y_raw.index,
+        name=y_raw.name,
     )
-
-    # pca = PCA(n_components=2)
-    # pca.fit(X_raw_std)
-    # print(pca.feature_names_in_)
-    # print(pca.components_)
-    # i = np.abs(pca.components_).argsort(1)
-    # print(i)
-    # print(pca.feature_names_in_[i])
 
     fire_cmd(recourse_adult, "Adult-MultiCost")
 
