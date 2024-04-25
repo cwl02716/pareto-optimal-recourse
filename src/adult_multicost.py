@@ -17,6 +17,8 @@ from helper.algorithm import (
     MultiCost,
     backtracking,
     final_costs,
+    find_maxima_2d,
+    find_maxima_nd,
     make_knn_graph_with_dummy_target,
     multicost_shortest_paths,
 )
@@ -34,16 +36,10 @@ sns.set_context("paper")
 sns.set_palette("bright")
 
 
-def multi_costs_fn(X: pd.DataFrame, cols: tuple[str, str], i: int, j: int) -> MultiCost:
-    def cost_fn(a: pd.Series, b: pd.Series, key: str) -> float:
-        x = b.at[key] - a.at[key]
-        return abs(x)
-
+def multi_costs_fn(X: pd.DataFrame, cols: list[str], i: int, j: int) -> MultiCost:
     a = X.iloc[i]
     b = X.iloc[j]
-    cost_0 = cost_fn(a, b, cols[0])
-    cost_1 = cost_fn(a, b, cols[1])
-    return MultiCost((AdditionCost(cost_0), AdditionCost(cost_1)))
+    return MultiCost(tuple(AdditionCost(abs(b.at[c] - a.at[c])) for c in cols))
 
 
 def main(verbose: bool = True) -> None:
@@ -91,6 +87,7 @@ def main(verbose: bool = True) -> None:
             limit,
             key=key,
             verbose=verbose,
+            method=find_maxima_nd,
         )
 
         paths = backtracking(
@@ -124,7 +121,7 @@ def main(verbose: bool = True) -> None:
         plt.show()
 
     key = "cost"
-    cols = "age", "education-num"
+    cols = ["age", "education-num", "hours-per-week"]
     X_raw, y_raw = load_dataframe(verbose=verbose)
 
     scaler = StandardScaler()

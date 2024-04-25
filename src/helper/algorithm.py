@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from abc import abstractmethod
+from functools import total_ordering
 from operator import itemgetter
 from typing import Any, Callable, Iterator, Protocol, Self, SupportsIndex
 from warnings import warn
@@ -11,6 +12,7 @@ import pandas as pd
 from sklearn.neighbors import kneighbors_graph
 
 
+@total_ordering
 class Comparable(Protocol):
     def __eq__(self, other: object, /) -> bool: ...
     def __lt__(self, other: Self, /) -> bool: ...
@@ -27,8 +29,20 @@ class Cost[T: Comparable](Protocol):
             return self.value == other.value
         return NotImplemented
 
+    def __ne__(self, value: object) -> bool:
+        return not self == value
+
     def __lt__(self, other: Self) -> bool:
         return self.value < other.value
+
+    def __le__(self, other: Self) -> bool:
+        return self.value <= other.value
+
+    def __gl__(self, other: Self) -> bool:
+        return self.value >= other.value
+
+    def __ge__(self, other: Self) -> bool:
+        return self.value >= other.value
 
     def __repr__(self) -> str:
         return repr(self.value)
@@ -80,6 +94,10 @@ class MaximumCost(FloatingCost):
 
 
 class MultiCost(Cost[tuple[FloatingCost, ...]]):
+
+    # def __eq__(self, other: Self) -> bool: # type: ignore
+    #     return all(x == float(y) for x, y in zip(self.value, other.value))
+    
     def __len__(self) -> int:
         return len(self.value)
 
@@ -126,6 +144,57 @@ def make_knn_graph_with_dummy_target(
     return graph
 
 
+def prune[T](x: list[T], limit: int, *, verbose: bool) -> list[T]:
+    size = len(x)
+    if size > limit:
+        if verbose:
+            warn(f"Exceed limit {size}!")
+        step = (size - 1) / (limit - 1)
+        x = [x[round(i * step)] for i in range(limit)]
+    return x
+
+
+def find_maxima_2d(
+    dist: list[tuple[SupportsIndex, MultiCost]],
+    limit: int,
+    *,
+    verbose: bool,
+) -> list[tuple[SupportsIndex, MultiCost]]:
+    maxima = []
+    if dist:
+        dist.sort(key=itemgetter(1))
+        _, y_min = dist[0][1].upperbound()
+        for u, (x, y) in dist:
+            if y < y_min:
+                maxima.append((u, MultiCost((x, y))))
+                y_min = y
+        maxima = prune(maxima, limit, verbose=verbose)
+    return maxima
+
+
+def find_maxima_nd(
+    dist: list[tuple[SupportsIndex, MultiCost]],
+    limit: int,
+    *,
+    verbose: bool,
+) -> list[tuple[SupportsIndex, MultiCost]]:
+    maxima = []
+    if dist:
+        tmp = []
+        for pu, cu in dist:
+            if not any(cu == cv for _, cv in tmp):
+                tmp.append((pu, cu))
+        for i, (pu, cu) in enumerate(tmp):
+            if not any(
+                all(cui >= cvi for cui, cvi in zip(cu, cv))
+                for j, (pv, cv) in enumerate(tmp)
+                if (i != j)
+            ):
+                maxima.append((pu, cu))
+        maxima = prune(maxima, limit, verbose=verbose)
+    return maxima
+
+
 def multicost_shortest_paths(
     graph: ig.Graph,
     source: int,
@@ -133,6 +202,7 @@ def multicost_shortest_paths(
     *,
     key: str,
     verbose: bool,
+    method: Callable[..., Any] = find_maxima_2d,
 ) -> list[list[tuple[SupportsIndex, MultiCost]]]:
     dist_list = [[] for _ in range(graph.vcount())]
     min_cost = graph.es[0][key].identity()
@@ -144,7 +214,7 @@ def multicost_shortest_paths(
             dist_u = dist_list[u]
             dist_v = dist_list[v]
             cost_uv = e[key]
-            dist_list[v] = find_maxima_2d(
+            dist_list[v] = method(
                 dist_v + [(u, cost_su + cost_uv) for _, cost_su in dist_u],
                 limit=limit,
                 verbose=verbose,
@@ -188,29 +258,6 @@ def backtracking(
             print(f"Path {i} {cost}: {path}")
 
     return paths
-
-
-def find_maxima_2d(
-    dist: list[tuple[SupportsIndex, MultiCost]],
-    limit: int,
-    *,
-    verbose: bool,
-) -> list[tuple[SupportsIndex, MultiCost]]:
-    maxima = []
-    if dist:
-        dist.sort(key=itemgetter(1))
-        _, y_min = dist[0][1].upperbound()
-        for u, (x, y) in dist:
-            if y < y_min:
-                maxima.append((u, MultiCost((x, y))))
-                y_min = y
-        size = len(maxima)
-        if size > limit:
-            if verbose:
-                warn(f"Exceed limit {size}!")
-            step = (size - 1) / (limit - 1)
-            maxima = [maxima[round(i * step)] for i in range(limit)]
-    return maxima
 
 
 def final_costs(
