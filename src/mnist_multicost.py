@@ -28,7 +28,7 @@ sklearn.set_config(transform_output="pandas")
 def multi_costs_fn(X: pd.DataFrame, y: pd.Series, i: int, j: int) -> MultiCost:
     a = X.iloc[i]
     b = X.iloc[j]
-    l1 = abs(y[j].item() - y[i].item())
+    l1 = abs(y.iat[j].item() - y.iat[i].item())
     l2 = np.linalg.norm(a - b, 2).item()
     return MultiCost((MaximumCost(l1), AdditionCost(l2)))
 

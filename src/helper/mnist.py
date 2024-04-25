@@ -40,8 +40,8 @@ def load_dataframe(*, verbose: bool) -> tuple[pd.DataFrame, pd.Series]:
     if verbose:
         print("Starting fetching MNIST dataset...")
     X, y = fetch_openml("mnist_784", return_X_y=True, as_frame=True)
-    # scaler = MinMaxScaler()
-    # X = scaler.fit_transform(X)  # type: ignore
+    scaler = MinMaxScaler()
+    X = scaler.fit_transform(X)  # type: ignore
     y = y.astype(int)  # type: ignore
     if verbose:
         print("Fetching MNIST dataset finished!")
@@ -57,8 +57,8 @@ def get_source_targets(
     show_n: int = 5,
     verbose: bool,
 ) -> tuple[int, list[int]]:
-    s = X[y == source].index[0]
-    ts = X[y == target].index.tolist()
+    s = (y.to_numpy() == source).nonzero()[0][0].item()
+    ts = (y.to_numpy() == target).nonzero()[0].tolist()
     if verbose:
         print(f"Source: {s}, Targets: {ts[:show_n]} ...")
     return s, ts

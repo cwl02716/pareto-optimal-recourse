@@ -1,27 +1,23 @@
-from datetime import datetime
-from functools import partial
-from pathlib import Path
 import random
-from typing import Sequence
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from functools import partial
+from itertools import product
+from typing import Any, Sequence
 
 import fire
 import numpy as np
 import pandas as pd
 import sklearn
+from sklearn.neighbors import radius_neighbors_graph
 from helper.algorithm import (
     AdditionCost,
     MaximumCost,
     MultiCost,
-    backtracking,
+    final_costs,
     make_knn_graph_with_dummy_target,
     multicost_shortest_paths,
 )
-from helper.cmd import fire_cmd
-
-from helper.mnist import (
-    load_dataframe,
-    plot_images,
-)
+from helper.mnist import load_dataframe
 
 sklearn.set_config(transform_output="pandas")
 
@@ -31,12 +27,11 @@ def select_samples(
     y: pd.Series,
     n_samples: int,
     *,
-    seed: int = 0,
+    rng: random.Random,
     startwith: Sequence[int] = (),
 ) -> tuple[pd.DataFrame, pd.Series]:
     idx_set = set(y.index.tolist())
     idx_set.difference_update(startwith)
-    rng = random.Random(seed)
     idx_list = list(startwith) + rng.sample(tuple(idx_set), n_samples - len(startwith))
     return X.loc[idx_list], y.loc[idx_list]
 
@@ -54,39 +49,70 @@ def multi_costs_fn(X: pd.DataFrame, y: pd.Series, i: int, j: int) -> MultiCost:
     return MultiCost((MaximumCost(cost_0), AdditionCost(cost_1)))
 
 
-def main(verbose: bool = True) -> None:
-    def recourse_mnist(
-        index: int,
-        target: int = 8,
-        n_samples: int = 256,
-        k_neighbors: int = 4,
-        limit: int = 8,
-        *,
-        seed: int = 0,
-    ) -> None:
-        X, y = select_samples(X_raw, y_raw, n_samples, seed=seed, startwith=(index,))
-        s = 0
-        ts = get_targets(y, target)
+def recourse_mnist(
+    X: pd.DataFrame,
+    y: pd.Series,
+    target: int,
+    k_neighbor: int = 4,
+    limit: int = 8,
+    *,
+    key: str = "cost",
+) -> list[tuple[float, ...]]:
+    ts = get_targets(y, target)
+    graph = make_knn_graph_with_dummy_target(
+        X,
+        k_neighbor,
+        ts,
+        partial(multi_costs_fn, X, y),
+        key=key,
+    )
+    dists = multicost_shortest_paths(graph, 0, limit, key=key, verbose=False)
+    costs = final_costs(dists)
+    return costs
 
-        source = y.iat[s].item()
 
-        graph = make_knn_graph_with_dummy_target(
-            X, k_neighbors, ts, partial(multi_costs_fn, X, y), key=key
-        )
+def main(
+    samples: Sequence[int],
+    trials: int,
+    index: int = 1,
+    target: int = 8,
+    seed: Any = None,
+    verbose: bool = True,
+) -> None:
+    rng = random.Random(seed)
+    index = 1
+    target = 8
 
-        if verbose:
-            print("Starting recourse algorithm...")
-
-        dists = multicost_shortest_paths(graph, s, limit, key=key, verbose=verbose)
-
-        if verbose:
-            print("Recourse algorithm finished!")
-
-        
-
-    key = "cost"
     X_raw, y_raw = load_dataframe(verbose=verbose)
-    fire_cmd(recourse_mnist, "MNIST-Epsilon")
+
+    futs = []
+    with ProcessPoolExecutor() as executor:
+        for n, t in product(samples, range(trials)):
+            if verbose:
+                print(f"submit n_samples: {n}, trial: {t}")
+            X, y = select_samples(
+                X_raw,
+                y_raw,
+                n,
+                rng=rng,
+                startwith=(index,),
+            )
+            fut = executor.submit(recourse_mnist, X, y, target)
+            futs.append(fut)
+
+    data = []
+    for (n, t), future in zip(product(samples, range(trials)), as_completed(futs)):
+        if verbose:
+            print(f"complete n_samples: {n}, trial: {t}")
+        for i, costs in enumerate(future.result()):
+            data.append((n, t, i, *costs))
+
+    df = pd.DataFrame(
+        data,
+        columns=("n_samples", "trial", "result", "cost_1", "cost_2"),
+    )
+
+    df.to_csv("dataset/mnist_epsilon.csv", index=False)
 
 
 if __name__ == "__main__":

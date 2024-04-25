@@ -96,19 +96,21 @@ def plot_images(
     fig, ax = plt.subplots()
     X_2d: pd.DataFrame = component.transform(X)  # type: ignore
     ft1, ft2 = component.get_feature_names_out()
-    y_label = y > 0.5
+    ge = "$\\geq 0.5$"
+    lt = "$< 0.5$"
+    y_label = np.where(y.to_numpy() < 0.5, lt, ge)
+
     sns.scatterplot(
         X_2d,
         x=ft1,
         y=ft2,
         hue=y_label,
-        hue_norm=(0, 1),
         size=y_label,
         sizes=(6, 24),
-        size_order=(1, 0),
+        size_order=(ge, lt),
         style=y_label,
         ax=ax,
-        palette="coolwarm",
+        palette=("#3B82F6", "#E4080A"),
         alpha=0.9,
         ec="w",
         lw=0.2,
@@ -129,7 +131,7 @@ def plot_images(
         grid[1],
         y_grid,
         levels=5,
-        alpha=1 / 3,
+        alpha=1 / 5,
         zorder=0,
         cmap="coolwarm",
     )

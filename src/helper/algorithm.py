@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from abc import abstractmethod
 from operator import itemgetter
-from typing import Callable, Protocol, Self, SupportsIndex
+from typing import Any, Callable, Iterator, Protocol, Self, SupportsIndex
 from warnings import warn
 
 import igraph as ig
@@ -48,7 +48,7 @@ class Cost[T: Comparable](Protocol):
 
 class FloatingCost(Cost[float]):
     def __float__(self) -> float:
-        return self.value
+        return float(self.value)
 
     def __repr__(self) -> str:
         return format(self.value, ".4g")
@@ -86,6 +86,9 @@ class MultiCost(Cost[tuple[FloatingCost, ...]]):
     def __getitem__(self, index: int) -> FloatingCost:
         return self.value[index]
 
+    def __iter__(self) -> Iterator[FloatingCost]:
+        return iter(self.value)
+
     def __add__(self, other: Self) -> Self:
         return type(self)(tuple(x + y for x, y in zip(self.value, other.value)))
 
@@ -104,13 +107,14 @@ class MultiCost(Cost[tuple[FloatingCost, ...]]):
 
 def make_knn_graph_with_dummy_target(
     X: pd.DataFrame,
-    k: int,
+    k: int | float,
     targets: list[int],
     cost_fn: Callable[[int, int], Cost],
     *,
     key: str,
+    func: Callable[..., Any] = kneighbors_graph,
 ) -> ig.Graph:
-    adj = kneighbors_graph(X, k)
+    adj = func(X, k)
     graph: ig.Graph = ig.Graph.Adjacency(adj.toarray())  # type: ignore
     es = graph.es
     for e in es:
@@ -209,5 +213,7 @@ def find_maxima_2d(
     return maxima
 
 
-def final_costs(dists: list[list[tuple[SupportsIndex, MultiCost]]]) -> list[MultiCost]:
-    return [dist[1] for dist in dists[-1]]
+def final_costs(
+    dists: list[list[tuple[SupportsIndex, MultiCost]]],
+) -> list[tuple[float, ...]]:
+    return [tuple(map(float, dist[1])) for dist in dists[-1]]
