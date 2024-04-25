@@ -8,7 +8,7 @@ import fire
 import numpy as np
 import pandas as pd
 import sklearn
-from sklearn.neighbors import radius_neighbors_graph
+
 from helper.algorithm import (
     AdditionCost,
     MaximumCost,
@@ -17,27 +17,10 @@ from helper.algorithm import (
     make_knn_graph_with_dummy_target,
     multicost_shortest_paths,
 )
-from helper.mnist import load_dataframe
+from helper.common import new_select_samples
+from helper.mnist import get_targets, load_dataframe
 
 sklearn.set_config(transform_output="pandas")
-
-
-def select_samples(
-    X: pd.DataFrame,
-    y: pd.Series,
-    n_samples: int,
-    *,
-    rng: random.Random,
-    startwith: Sequence[int] = (),
-) -> tuple[pd.DataFrame, pd.Series]:
-    idx_set = set(y.index.tolist())
-    idx_set.difference_update(startwith)
-    idx_list = list(startwith) + rng.sample(tuple(idx_set), n_samples - len(startwith))
-    return X.loc[idx_list], y.loc[idx_list]
-
-
-def get_targets(y: pd.Series, target: int) -> list[int]:
-    return (y.to_numpy() == target).nonzero()[0].tolist()
 
 
 def multi_costs_fn(X: pd.DataFrame, y: pd.Series, i: int, j: int) -> MultiCost:
@@ -46,7 +29,7 @@ def multi_costs_fn(X: pd.DataFrame, y: pd.Series, i: int, j: int) -> MultiCost:
     diff = np.subtract(a, b)
     cost_0 = abs(y.iat[i].item() - y.iat[j].item())
     cost_1 = np.linalg.norm(diff, 2).item()
-    return MultiCost((MaximumCost(cost_0), AdditionCost(cost_1)))
+    return MultiCost((MaximumCost(cost_0), MaximumCost(cost_1)))
 
 
 def recourse_mnist(
@@ -79,37 +62,36 @@ def main(
     seed: Any = None,
     verbose: bool = True,
 ) -> None:
+    samples = sorted(samples, reverse=True)
     rng = random.Random(seed)
-    index = 1
-    target = 8
-
-    X_raw, y_raw = load_dataframe(verbose=verbose)
-
+    X_raw, y_raw = new_select_samples(
+        *load_dataframe(verbose=verbose),
+        samples[0] * 2,
+        rng=rng,
+        startwith=(index,),
+    )
     futs = []
     with ProcessPoolExecutor() as executor:
-        for n, t in product(samples, range(trials)):
-            if verbose:
-                print(f"submit n_samples: {n}, trial: {t}")
-            X, y = select_samples(
-                X_raw,
-                y_raw,
-                n,
-                rng=rng,
-                startwith=(index,),
-            )
-            fut = executor.submit(recourse_mnist, X, y, target)
-            futs.append(fut)
+        for t in range(trials):
+            X = X_raw
+            y = y_raw
+            for n in samples:
+                if verbose:
+                    print(f"submit trial: {t}, n_samples: {n}")
+                X, y = new_select_samples(X, y, n, rng=rng, startwith=(index,))
+                fut = executor.submit(recourse_mnist, X, y, target)
+                futs.append(fut)
 
     data = []
-    for (n, t), future in zip(product(samples, range(trials)), as_completed(futs)):
+    for (n, t), future in zip(product(range(trials), samples), as_completed(futs)):
         if verbose:
-            print(f"complete n_samples: {n}, trial: {t}")
+            print(f"complete trial: {t}, n_samples: {n}")
         for i, costs in enumerate(future.result()):
             data.append((n, t, i, *costs))
 
     df = pd.DataFrame(
         data,
-        columns=("n_samples", "trial", "result", "cost_1", "cost_2"),
+        columns=("trial", "n_samples", "result", "cost_1", "cost_2"),
     )
 
     df.to_csv("dataset/mnist_epsilon.csv", index=False)

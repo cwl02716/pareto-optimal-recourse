@@ -49,7 +49,6 @@ def load_dataframe(*, verbose: bool) -> tuple[pd.DataFrame, pd.Series]:
 
 
 def get_source_targets(
-    X: pd.DataFrame,
     y: pd.Series,
     source: int,
     target: int,
@@ -62,3 +61,7 @@ def get_source_targets(
     if verbose:
         print(f"Source: {s}, Targets: {ts[:show_n]} ...")
     return s, ts
+
+
+def get_targets(y: pd.Series, target: int) -> list[int]:
+    return (y.to_numpy() == target).nonzero()[0].tolist()

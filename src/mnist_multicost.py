@@ -1,6 +1,8 @@
+import random
 from datetime import datetime
 from functools import partial
 from pathlib import Path
+from typing import Any
 
 import fire
 import numpy as np
@@ -15,9 +17,9 @@ from helper.algorithm import (
     multicost_shortest_paths,
 )
 from helper.cmd import fire_cmd
-from helper.common import select_samples
+from helper.common import new_select_samples
 from helper.mnist import (
-    get_source_targets,
+    get_targets,
     load_dataframe,
     plot_images,
 )
@@ -35,17 +37,20 @@ def multi_costs_fn(X: pd.DataFrame, y: pd.Series, i: int, j: int) -> MultiCost:
 
 def main(verbose: bool = True) -> None:
     def recourse_mnist(
-        source: int,
+        index: int,
         target: int,
         samples: int = 256,
         neighbors: int = 4,
         limit: int = 8,
         *,
-        seed: int = 0,
+        seed: Any = None,
     ) -> None:
-        X, y = select_samples(X_raw, y_raw, samples=samples, seed=seed, verbose=verbose)
-
-        s, ts = get_source_targets(X, y, source, target, verbose=verbose)
+        rng = random.Random(seed)
+        X, y = new_select_samples(X_raw, y_raw, samples, rng=rng, startwith=(index,))
+        
+        s = 0
+        source = y.iat[s].item()
+        ts = get_targets(y, target)
 
         graph = make_knn_graph_with_dummy_target(
             X,
@@ -58,7 +63,7 @@ def main(verbose: bool = True) -> None:
         if verbose:
             print("Starting recourse algorithm...")
 
-        dists = multicost_shortest_paths(graph, s, limit, key=key, verbose=verbose)
+        dists = multicost_shortest_paths(graph, 0, limit, key=key, verbose=verbose)
 
         if verbose:
             print("Recourse algorithm finished!")
@@ -77,7 +82,7 @@ def main(verbose: bool = True) -> None:
             dir.mkdir(exist_ok=True, parents=True)
 
             for i, path in enumerate(paths):
-                plot_images(X, path, file=dir / f"{i}.png", verbose=verbose)
+                plot_images(X, path, file=dir / f"{i}.pdf", verbose=verbose)
 
     key = "cost"
     X_raw, y_raw = load_dataframe(verbose=verbose)

@@ -11,7 +11,7 @@ def fire_cmd(component: Any, name: str | None = None) -> None:
         try:
             fire.Fire(component, input(prompt), name)
         except FireExit:
-            break
+            pass
         except EOFError:
             break
         except Exception:

@@ -62,7 +62,7 @@ def main(verbose: bool = True) -> None:
         )
 
         X, y, X_std = select_samples(
-            X, y, X_std, samples=n_samples, seed=seed, verbose=verbose
+            X, y, X_std, n_samples=n_samples, seed=seed, verbose=verbose
         )
 
         model = MLPClassifier(learning_rate_init=0.01, max_iter=1024, random_state=seed)
