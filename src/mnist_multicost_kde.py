@@ -8,6 +8,7 @@ import fire
 import numpy as np
 import pandas as pd
 import sklearn
+from sklearn.neighbors import KernelDensity
 from helper.algorithm import (
     AdditionCost,
     MaximumCost,
@@ -27,10 +28,10 @@ from helper.mnist import (
 sklearn.set_config(transform_output="pandas")
 
 
-def multi_costs_fn(X: pd.DataFrame, y: pd.Series, i: int, j: int) -> MultiCost:
+def multi_costs_fn(X: pd.DataFrame, score: list[int], i: int, j: int) -> MultiCost:
     a = X.iloc[i]
     b = X.iloc[j]
-    l1 = abs(y.iat[j].item() - y.iat[i].item())
+    l1 = score[j]
     l2 = np.linalg.norm(a - b, 2).item()
     return MultiCost((MaximumCost(l1), AdditionCost(l2)))
 
@@ -55,6 +56,17 @@ def main(verbose: bool = True) -> None:
             verbose=verbose,
         )
 
+        if verbose:
+            print("Fitting KDE...")
+        kde = KernelDensity()
+        kde.fit(X)
+        score = kde.score_samples(X)
+        np.negative(score, score)
+        score = score.tolist()
+        if verbose:
+            print(score[:5], "...")
+            print("KDE fitted!")
+
         s = 0
         source = y.iat[s].item()
         ts = get_targets(y, target)
@@ -63,7 +75,7 @@ def main(verbose: bool = True) -> None:
             X,
             k_neighbors,
             ts,
-            partial(multi_costs_fn, X, y),
+            partial(multi_costs_fn, X, score),
             key=key,
         )
 

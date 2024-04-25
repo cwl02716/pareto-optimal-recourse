@@ -13,10 +13,13 @@ def new_select_samples(
     *,
     rng: random.Random,
     startwith: Sequence[int] = (),
+    verbose: bool,
 ) -> tuple[pd.DataFrame, pd.Series]:
     idx_set = set(X.index.tolist())
     idx_set.difference_update(startwith)
     idx_list = list(startwith) + rng.sample(tuple(idx_set), n_samples - len(startwith))
+    if verbose:
+        print(f"Sampled dataset with size {n_samples}")
     return X.loc[idx_list], y.loc[idx_list]
 
 
