@@ -65,7 +65,7 @@ class FloatingCost(Cost[float]):
         return float(self.value)
 
     def __repr__(self) -> str:
-        return format(self.value, ".6g")
+        return format(self.value, ".2g")
 
     def isclose(self, other: Self) -> bool:
         return math.isclose(self.value, other.value)
@@ -94,10 +94,6 @@ class MaximumCost(FloatingCost):
 
 
 class MultiCost(Cost[tuple[FloatingCost, ...]]):
-
-    # def __eq__(self, other: Self) -> bool: # type: ignore
-    #     return all(x == float(y) for x, y in zip(self.value, other.value))
-    
     def __len__(self) -> int:
         return len(self.value)
 
