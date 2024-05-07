@@ -18,7 +18,6 @@ from helper.algorithm import (
     backtracking,
     final_costs,
     find_maxima_2d,
-    find_maxima_nd,
     make_knn_graph_with_dummy_target,
     multicost_shortest_paths,
 )
@@ -87,7 +86,7 @@ def main(verbose: bool = True) -> None:
             limit,
             key=key,
             verbose=verbose,
-            method=find_maxima_nd,
+            method=find_maxima_2d,
         )
 
         paths = backtracking(
@@ -121,7 +120,7 @@ def main(verbose: bool = True) -> None:
         plt.show()
 
     key = "cost"
-    cols = ["age", "education-num", "hours-per-week"]
+    cols = ["age", "education-num"]
     X_raw, y_raw = load_dataframe(verbose=verbose)
 
     scaler = StandardScaler()

@@ -2,9 +2,11 @@ from functools import partial
 from warnings import warn
 
 import fire
+import numpy as np
 import pandas as pd
 import seaborn as sns
 import sklearn
+from sklearn.neighbors import KernelDensity
 from helper.adult import (
     get_targets,
     load_dataframe,
@@ -14,10 +16,10 @@ from helper.adult import (
 )
 from helper.algorithm import (
     AdditionCost,
+    MaximumCost,
     MultiCost,
     backtracking,
     final_costs,
-    find_maxima_2d,
     find_maxima_nd,
     make_knn_graph_with_dummy_target,
     multicost_shortest_paths,
@@ -36,10 +38,16 @@ sns.set_context("talk")
 sns.set_palette("bright")
 
 
-def multi_costs_fn(X: pd.DataFrame, cols: list[str], i: int, j: int) -> MultiCost:
+def multi_costs_fn(
+    X: pd.DataFrame,
+    cols: list[str],
+    i: int,
+    j: int,
+) -> MultiCost:
     a = X.iloc[i]
     b = X.iloc[j]
-    return MultiCost(tuple(AdditionCost(abs(b.at[c] - a.at[c])) for c in cols))
+    costs = (AdditionCost(abs(b.at[c].item() - a.at[c].item())) for c in cols)
+    return MultiCost((MaximumCost(b.at["kde"].item()), *costs))
 
 
 def main(verbose: bool = True) -> None:
@@ -140,6 +148,19 @@ def main(verbose: bool = True) -> None:
         index=y_raw.index,
         name=y_raw.name,
     )
+    if verbose:
+        print("Fitting KDE...")
+    kde = KernelDensity().fit(X_raw)
+    score = kde.score_samples(X_raw)
+    np.negative(score, score)
+    score = score.argsort()
+    np.multiply(score, 100, score)
+    score = np.true_divide(score, score.shape[0])
+    X_raw["kde"] = score
+    if verbose:
+        print("KDE fitted!")
+
+    # X_raw.to_csv("adult.csv", index=False)
 
     fire_cmd(recourse_adult, "Adult-MultiCost")
 

@@ -40,7 +40,7 @@ def recourse_mnist(
     limit: int = 8,
     *,
     key: str = "cost",
-) -> list[tuple[float, ...]]:
+) -> list[MultiCost]:
     ts = get_targets(y, target)
     graph = make_knn_graph_with_dummy_target(
         X,
@@ -69,6 +69,7 @@ def main(
         samples[0] * 2,
         rng=rng,
         startwith=(index,),
+        verbose=verbose,
     )
     futs = []
     with ProcessPoolExecutor() as executor:
@@ -78,7 +79,9 @@ def main(
             for n in samples:
                 if verbose:
                     print(f"submit trial: {t}, n_samples: {n}")
-                X, y = new_select_samples(X, y, n, rng=rng, startwith=(index,))
+                X, y = new_select_samples(
+                    X, y, n, rng=rng, startwith=(index,), verbose=verbose
+                )
                 fut = executor.submit(recourse_mnist, X, y, target)
                 futs.append(fut)
 
@@ -87,7 +90,7 @@ def main(
         if verbose:
             print(f"complete trial: {t}, n_samples: {n}")
         for i, costs in enumerate(future.result()):
-            data.append((n, t, i, *costs))
+            data.append((n, t, i, *map(float, costs)))
 
     df = pd.DataFrame(
         data,

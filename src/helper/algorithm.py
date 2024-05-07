@@ -65,7 +65,7 @@ class FloatingCost(Cost[float]):
         return float(self.value)
 
     def __repr__(self) -> str:
-        return format(self.value, ".2g")
+        return format(self.value, "3.2g")
 
     def isclose(self, other: Self) -> bool:
         return math.isclose(self.value, other.value)
@@ -256,7 +256,5 @@ def backtracking(
     return paths
 
 
-def final_costs(
-    dists: list[list[tuple[SupportsIndex, MultiCost]]],
-) -> list[tuple[float, ...]]:
-    return [tuple(map(float, dist[1])) for dist in dists[-1]]
+def final_costs(dists: list[list[tuple[SupportsIndex, MultiCost]]]) -> list[MultiCost]:
+    return [dist[1] for dist in dists[-1]]

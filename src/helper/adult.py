@@ -93,7 +93,7 @@ def plot_images(
         y = y.loc[sample_idx]
 
     ax: plt.Axes  # type: ignore
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(10, 10))
     X_2d: pd.DataFrame = component.transform(X)  # type: ignore
     ft1, ft2 = component.get_feature_names_out()
     ge = "$\\geq 0.5$"
@@ -106,7 +106,7 @@ def plot_images(
         y=ft2,
         hue=y_label,
         size=y_label,
-        sizes=(6, 24),
+        sizes=(12, 48),
         size_order=(ge, lt),
         style=y_label,
         ax=ax,
@@ -163,3 +163,12 @@ def plot_images(
     ax.set_ylabel("$PCA_1$")
     if title:
         ax.set_title(title)
+
+    sns.move_legend(
+        ax,
+        "lower center",
+        bbox_to_anchor=(0.5, 1),
+        ncol=3,
+        title=None,
+        frameon=False,
+    )
