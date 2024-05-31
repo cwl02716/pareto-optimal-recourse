@@ -3,7 +3,6 @@ from functools import partial
 from os import PathLike
 from pathlib import Path
 
-import fire
 import numpy as np
 import pandas as pd
 import sklearn
@@ -14,7 +13,7 @@ from helper.algorithm import (
     make_knn_graph_with_dummy_target,
     multicost_shortest_paths,
 )
-from helper.cmd import fire_cmd
+from helper.shell import run_shell
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 
@@ -136,8 +135,8 @@ def main(verbose: bool = True) -> None:
 
     key = "cost"
     X, y, nll = load_dataframe()
-    fire_cmd(vae_mnist, "VAE-MultiCost")
+    run_shell(vae_mnist, "VAE-MultiCost")
 
 
 if __name__ == "__main__":
-    fire.Fire(main)
+    typer.run(main)

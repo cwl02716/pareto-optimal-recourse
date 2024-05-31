@@ -2,18 +2,18 @@ from datetime import datetime
 from functools import partial
 from pathlib import Path
 
-import fire
 import igraph as ig
 import pandas as pd
 import sklearn
+import typer
 from helper.algorithm import AdditionCost, make_knn_graph_with_dummy_target
-from helper.cmd import fire_cmd
 from helper.common import select_samples
 from helper.mnist import (
     get_source_targets,
     load_dataframe,
     plot_images,
 )
+from helper.shell import run_shell
 from sklearn.neighbors import KernelDensity
 
 sklearn.set_config(transform_output="pandas")
@@ -76,8 +76,8 @@ def main(verbose: bool = True) -> None:
 
     key = "cost"
     X_raw, y_raw = load_dataframe(verbose=verbose)
-    fire_cmd(face, "MNIST-Face")
+    run_shell(face, "MNIST-Face")
 
 
 if __name__ == "__main__":
-    fire.Fire(main)
+    typer.run(main)

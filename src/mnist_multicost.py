@@ -4,10 +4,10 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
-import fire
 import numpy as np
 import pandas as pd
 import sklearn
+import typer
 from helper.algorithm import (
     AdditionCost,
     MaximumCost,
@@ -16,13 +16,13 @@ from helper.algorithm import (
     make_knn_graph_with_dummy_target,
     multicost_shortest_paths,
 )
-from helper.cmd import fire_cmd
 from helper.common import new_select_samples
 from helper.mnist import (
     get_targets,
     load_dataframe,
     plot_images,
 )
+from helper.shell import run_shell
 
 sklearn.set_config(transform_output="pandas")
 
@@ -93,8 +93,8 @@ def main(verbose: bool = True) -> None:
 
     key = "cost"
     X_raw, y_raw = load_dataframe(verbose=verbose)
-    fire_cmd(recourse_mnist, "MNIST-MultiCost")
+    run_shell(recourse_mnist, "MNIST-MultiCost")
 
 
 if __name__ == "__main__":
-    fire.Fire(main)
+    typer.run(main)

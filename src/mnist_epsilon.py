@@ -4,11 +4,10 @@ from functools import partial
 from itertools import product
 from typing import Any, Sequence
 
-import fire
 import numpy as np
 import pandas as pd
 import sklearn
-
+import typer
 from helper.algorithm import (
     MaximumCost,
     MultiCost,
@@ -100,4 +99,4 @@ def main(
 
 
 if __name__ == "__main__":
-    fire.Fire(main)
+    typer.run(main)

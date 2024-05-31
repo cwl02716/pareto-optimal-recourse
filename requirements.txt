@@ -4,4 +4,4 @@ igraph
 matplotlib
 seaborn
 scikit-learn
-fire
+typer

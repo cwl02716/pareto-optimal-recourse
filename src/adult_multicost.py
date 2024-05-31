@@ -1,10 +1,10 @@
 from functools import partial
 from warnings import warn
 
-import fire
 import pandas as pd
 import seaborn as sns
 import sklearn
+import typer
 from helper.adult import (
     get_targets,
     load_dataframe,
@@ -21,8 +21,8 @@ from helper.algorithm import (
     make_knn_graph_with_dummy_target,
     multicost_shortest_paths,
 )
-from helper.cmd import fire_cmd
 from helper.common import select_indices, select_mask, select_samples
+from helper.shell import run_shell
 from matplotlib import pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import StandardScaler
@@ -140,8 +140,8 @@ def main(verbose: bool = True) -> None:
         name=y_raw.name,
     )
 
-    fire_cmd(recourse_adult, "Adult-MultiCost")
+    run_shell(recourse_adult, "Adult-MultiCost")
 
 
 if __name__ == "__main__":
-    fire.Fire(main)
+    typer.run(main)
