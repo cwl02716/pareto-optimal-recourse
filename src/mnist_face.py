@@ -38,7 +38,9 @@ def main(verbose: bool = True) -> None:
         *,
         seed: int = 0,
     ) -> None:
-        X, y = select_samples(X_raw, y_raw, n_samples=samples, seed=seed, verbose=verbose)
+        X, y = select_samples(
+            X_raw, y_raw, n_samples=samples, seed=seed, verbose=verbose
+        )
 
         s, ts = get_source_targets(X, y, source, target, verbose=verbose)
 

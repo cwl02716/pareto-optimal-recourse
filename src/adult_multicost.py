@@ -17,7 +17,6 @@ from helper.algorithm import (
     MultiCost,
     backtracking,
     final_costs,
-    find_maxima_2d,
     find_maxima_nd,
     make_knn_graph_with_dummy_target,
     multicost_shortest_paths,
