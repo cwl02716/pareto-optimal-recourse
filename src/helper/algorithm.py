@@ -2,9 +2,18 @@ from __future__ import annotations
 
 import math
 from abc import abstractmethod
+from dataclasses import dataclass
 from functools import total_ordering
-from operator import itemgetter
-from typing import Any, Callable, Iterator, Protocol, Self, SupportsIndex
+from operator import add, itemgetter
+from typing import (
+    Any,
+    Callable,
+    Iterator,
+    Protocol,
+    Self,
+    Sequence,
+    SupportsIndex,
+)
 from warnings import warn
 
 import igraph as ig
@@ -14,39 +23,14 @@ from sklearn.neighbors import kneighbors_graph
 
 @total_ordering
 class Comparable(Protocol):
+    @abstractmethod
     def __eq__(self, other: object, /) -> bool: ...
+
+    @abstractmethod
     def __lt__(self, other: Self, /) -> bool: ...
 
 
-class Cost[T: Comparable](Protocol):
-    value: T
-
-    def __init__(self, value: T) -> None:
-        self.value = value
-
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, type(self)):
-            return self.value == other.value
-        return NotImplemented
-
-    def __ne__(self, value: object) -> bool:
-        return not self == value
-
-    def __lt__(self, other: Self) -> bool:
-        return self.value < other.value
-
-    def __le__(self, other: Self) -> bool:
-        return self.value <= other.value
-
-    def __gl__(self, other: Self) -> bool:
-        return self.value >= other.value
-
-    def __ge__(self, other: Self) -> bool:
-        return self.value >= other.value
-
-    def __repr__(self) -> str:
-        return repr(self.value)
-
+class Cost(Comparable):
     @abstractmethod
     def __add__(self, other: Self) -> Self: ...
 
@@ -60,15 +44,15 @@ class Cost[T: Comparable](Protocol):
     def identity(self) -> Self: ...
 
 
-class FloatingCost(Cost[float]):
+@dataclass(order=True, slots=True)
+class FloatingCost(Cost):
+    value: float
+
     def __float__(self) -> float:
-        return float(self.value)
+        return self.value
 
     def __repr__(self) -> str:
-        return format(self.value, "3.2g")
-
-    def isclose(self, other: Self) -> bool:
-        return math.isclose(self.value, other.value)
+        return f"{self.value:3.2g}"
 
     def lowerbound(self) -> Self:
         return type(self)(-math.inf)
@@ -93,7 +77,10 @@ class MaximumCost(FloatingCost):
         return type(self)(-math.inf)
 
 
-class MultiCost(Cost[tuple[FloatingCost, ...]]):
+@dataclass(order=True, slots=True)
+class MultiCost(Cost):
+    value: Sequence[FloatingCost]
+
     def __len__(self) -> int:
         return len(self.value)
 
@@ -104,10 +91,13 @@ class MultiCost(Cost[tuple[FloatingCost, ...]]):
         return iter(self.value)
 
     def __add__(self, other: Self) -> Self:
-        return type(self)(tuple(x + y for x, y in zip(self.value, other.value)))
+        return type(self)(tuple(map(add, self.value, other.value)))
+
+    def __repr__(self) -> str:
+        return repr(self.value)
 
     def isclose(self, other: Self) -> bool:
-        return all(x.isclose(y) for x, y in zip(self.value, other.value))
+        return all(map(math.isclose, self.value, other.value))
 
     def lowerbound(self) -> Self:
         return type(self)(tuple(x.lowerbound() for x in self.value))
