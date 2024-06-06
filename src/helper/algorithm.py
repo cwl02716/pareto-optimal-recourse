@@ -1,24 +1,22 @@
 from __future__ import annotations
 
+import logging
 import math
 from abc import abstractmethod
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from functools import total_ordering
 from operator import add, itemgetter
-from typing import (
-    Any,
-    Callable,
-    Iterator,
-    Protocol,
-    Self,
-    Sequence,
-    SupportsIndex,
-)
+from typing import Any, Protocol, Self, SupportsIndex
 from warnings import warn
 
 import igraph as ig
+import numpy as np
 import pandas as pd
+from scipy import sparse
 from sklearn.neighbors import kneighbors_graph
+
+logger = logging.getLogger(__name__)
 
 
 @total_ordering
@@ -109,6 +107,35 @@ class MultiCost(Cost):
         return type(self)(tuple(x.identity() for x in self.value))
 
 
+# intended to replace `make_knn_graph_with_dummy_target`
+def make_graph[T](
+    X: pd.DataFrame,
+    targets: Sequence[int],
+    k: T,
+    *,
+    key: str,
+    cost_fn: Callable[[int, int], Cost],
+    maker_fn: Callable[[pd.DataFrame, T], sparse.spmatrix] = kneighbors_graph,
+) -> ig.Graph:
+    adj = maker_fn(X, k).astype(np.int32)  # type: ignore
+    g: ig.Graph = ig.Graph.Adjacency(adj)
+    logger.debug(
+        "graph(V=%d, E=%d) | build from adjancency matrix", g.vcount(), g.ecount()
+    )
+
+    es = g.es
+    es[key] = costs = [cost_fn(*e.tuple) for e in es]
+    assert costs, "empty costs"
+    logger.debug("graph(V=%d, E=%d) | add costs to edges", g.vcount(), g.ecount())
+
+    t = g.add_vertex()
+    i = costs[0].identity()
+    g.add_edges([(v, t) for v in targets], {key: [i] * len(targets)})
+    logger.debug("graph(V=%d, E=%d) | add dummy target", g.vcount(), g.ecount())
+
+    return g
+
+
 def make_knn_graph_with_dummy_target(
     X: pd.DataFrame,
     k: int | float,
@@ -119,7 +146,7 @@ def make_knn_graph_with_dummy_target(
     func: Callable[..., Any] = kneighbors_graph,
 ) -> ig.Graph:
     adj = func(X, k)
-    graph: ig.Graph = ig.Graph.Adjacency(adj.toarray())  # type: ignore
+    graph: ig.Graph = ig.Graph.Adjacency(adj)  # type: ignore
     es = graph.es
     for e in es:
         u, v = e.tuple
