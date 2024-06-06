@@ -14,7 +14,7 @@ from helper.adult import (
 )
 from helper.algorithm import (
     AdditionCost,
-    MultiCost,
+    MultiCosts,
     backtracking,
     final_costs,
     find_maxima_2d,
@@ -35,10 +35,10 @@ sns.set_context("talk")
 sns.set_palette("bright")
 
 
-def multi_costs_fn(X: pd.DataFrame, cols: list[str], i: int, j: int) -> MultiCost:
+def multi_costs_fn(X: pd.DataFrame, cols: list[str], i: int, j: int) -> MultiCosts:
     a = X.iloc[i]
     b = X.iloc[j]
-    return MultiCost(tuple(AdditionCost(abs(b.at[c] - a.at[c])) for c in cols))
+    return MultiCosts(tuple(AdditionCost(abs(b.at[c] - a.at[c])) for c in cols))
 
 
 def main(verbose: bool = True) -> None:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import math
 from abc import abstractmethod
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from functools import total_ordering
 from operator import add, itemgetter
@@ -50,7 +50,7 @@ class FloatingCost(Cost):
         return self.value
 
     def __repr__(self) -> str:
-        return f"{self.value:3.2g}"
+        return f"{self.value:.2g}"
 
     def lowerbound(self) -> Self:
         return type(self)(-math.inf)
@@ -75,9 +75,12 @@ class MaximumCost(FloatingCost):
         return type(self)(-math.inf)
 
 
-@dataclass(order=True, slots=True)
-class MultiCost(Cost):
+@dataclass(init=False, order=True, slots=True)
+class MultiCosts(Cost):
     value: Sequence[FloatingCost]
+
+    def __init__(self, value: Iterable[FloatingCost]) -> None:
+        self.value = (*value,)
 
     def __len__(self) -> int:
         return len(self.value)
@@ -89,7 +92,7 @@ class MultiCost(Cost):
         return iter(self.value)
 
     def __add__(self, other: Self) -> Self:
-        return type(self)(tuple(map(add, self.value, other.value)))
+        return type(self)(map(add, self.value, other.value))
 
     def __repr__(self) -> str:
         return repr(self.value)
@@ -98,13 +101,13 @@ class MultiCost(Cost):
         return all(map(math.isclose, self.value, other.value))
 
     def lowerbound(self) -> Self:
-        return type(self)(tuple(x.lowerbound() for x in self.value))
+        return type(self)(x.lowerbound() for x in self.value)
 
     def upperbound(self) -> Self:
-        return type(self)(tuple(x.upperbound() for x in self.value))
+        return type(self)(x.upperbound() for x in self.value)
 
     def identity(self) -> Self:
-        return type(self)(tuple(x.identity() for x in self.value))
+        return type(self)(x.identity() for x in self.value)
 
 
 # intended to replace `make_knn_graph_with_dummy_target`
@@ -119,19 +122,16 @@ def make_graph[T](
 ) -> ig.Graph:
     adj = maker_fn(X, k).astype(np.int32)  # type: ignore
     g: ig.Graph = ig.Graph.Adjacency(adj)
-    logger.debug(
-        "graph(V=%d, E=%d) | build from adjancency matrix", g.vcount(), g.ecount()
-    )
+    logger.debug("G(V=%d, E=%d) | build from adj matrix", g.vcount(), g.ecount())
 
-    es = g.es
-    es[key] = costs = [cost_fn(*e.tuple) for e in es]
+    idx = X.index.to_list()
+    g.es[key] = costs = [cost_fn(idx[u], idx[v]) for u, v in g.get_edgelist()]
     assert costs, "empty costs"
-    logger.debug("graph(V=%d, E=%d) | add costs to edges", g.vcount(), g.ecount())
 
     t = g.add_vertex()
     i = costs[0].identity()
     g.add_edges([(v, t) for v in targets], {key: [i] * len(targets)})
-    logger.debug("graph(V=%d, E=%d) | add dummy target", g.vcount(), g.ecount())
+    logger.debug("G(V=%d, E=%d) | add target vertex", g.vcount(), g.ecount())
 
     return g
 
@@ -168,29 +168,29 @@ def prune[T](x: list[T], limit: int, *, verbose: bool) -> list[T]:
 
 
 def find_maxima_2d(
-    dist: list[tuple[SupportsIndex, MultiCost]],
+    dist: list[tuple[SupportsIndex, MultiCosts]],
     limit: int,
     *,
     verbose: bool,
-) -> list[tuple[SupportsIndex, MultiCost]]:
+) -> list[tuple[SupportsIndex, MultiCosts]]:
     maxima = []
     if dist:
         dist.sort(key=itemgetter(1))
         _, y_min = dist[0][1].upperbound()
         for u, (x, y) in dist:
             if y < y_min:
-                maxima.append((u, MultiCost((x, y))))
+                maxima.append((u, MultiCosts((x, y))))
                 y_min = y
         maxima = prune(maxima, limit, verbose=verbose)
     return maxima
 
 
 def find_maxima_nd(
-    dist: list[tuple[SupportsIndex, MultiCost]],
+    dist: list[tuple[SupportsIndex, MultiCosts]],
     limit: int,
     *,
     verbose: bool,
-) -> list[tuple[SupportsIndex, MultiCost]]:
+) -> list[tuple[SupportsIndex, MultiCosts]]:
     maxima = []
     if dist:
         tmp = []
@@ -216,7 +216,7 @@ def multicost_shortest_paths(
     key: str,
     verbose: bool,
     method: Callable[..., Any] = find_maxima_2d,
-) -> list[list[tuple[SupportsIndex, MultiCost]]]:
+) -> list[list[tuple[SupportsIndex, MultiCosts]]]:
     dist_list = [[] for _ in range(graph.vcount())]
     min_cost = graph.es[0][key].identity()
     dist_list[source] = [(source, min_cost)]
@@ -237,7 +237,7 @@ def multicost_shortest_paths(
 
 def backtracking(
     graph: ig.Graph,
-    dist_list: list[list[tuple[SupportsIndex, MultiCost]]],
+    dist_list: list[list[tuple[SupportsIndex, MultiCosts]]],
     s: int,
     *,
     key: str,
@@ -273,5 +273,7 @@ def backtracking(
     return paths
 
 
-def final_costs(dists: list[list[tuple[SupportsIndex, MultiCost]]]) -> list[MultiCost]:
+def final_costs(
+    dists: list[list[tuple[SupportsIndex, MultiCosts]]],
+) -> list[MultiCosts]:
     return [dist[1] for dist in dists[-1]]

@@ -10,7 +10,7 @@ import sklearn
 import typer
 from helper.algorithm import (
     MaximumCost,
-    MultiCost,
+    MultiCosts,
     final_costs,
     make_knn_graph_with_dummy_target,
     multicost_shortest_paths,
@@ -21,13 +21,13 @@ from helper.mnist import get_targets, load_dataframe
 sklearn.set_config(transform_output="pandas")
 
 
-def multi_costs_fn(X: pd.DataFrame, y: pd.Series, i: int, j: int) -> MultiCost:
+def multi_costs_fn(X: pd.DataFrame, y: pd.Series, i: int, j: int) -> MultiCosts:
     a = X.iloc[i].to_numpy()
     b = X.iloc[j].to_numpy()
     diff = np.subtract(a, b)
     cost_0 = abs(y.iat[i].item() - y.iat[j].item())
     cost_1 = np.linalg.norm(diff, 2).item()
-    return MultiCost((MaximumCost(cost_0), MaximumCost(cost_1)))
+    return MultiCosts((MaximumCost(cost_0), MaximumCost(cost_1)))
 
 
 def recourse_mnist(
@@ -38,7 +38,7 @@ def recourse_mnist(
     limit: int = 8,
     *,
     key: str = "cost",
-) -> list[MultiCost]:
+) -> list[MultiCosts]:
     ts = get_targets(y, target)
     graph = make_knn_graph_with_dummy_target(
         X,

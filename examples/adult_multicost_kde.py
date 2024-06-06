@@ -16,7 +16,7 @@ from helper.adult import (
 from helper.algorithm import (
     AdditionCost,
     MaximumCost,
-    MultiCost,
+    MultiCosts,
     backtracking,
     final_costs,
     find_maxima_nd,
@@ -43,11 +43,11 @@ def multi_costs_fn(
     cols: list[str],
     i: int,
     j: int,
-) -> MultiCost:
+) -> MultiCosts:
     a = X.iloc[i]
     b = X.iloc[j]
     costs = (AdditionCost(abs(b.at[c].item() - a.at[c].item())) for c in cols)
-    return MultiCost((MaximumCost(b.at["kde"].item()), *costs))
+    return MultiCosts((MaximumCost(b.at["kde"].item()), *costs))
 
 
 def main(verbose: bool = True) -> None:

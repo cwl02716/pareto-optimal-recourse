@@ -6,9 +6,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import sklearn
+import typer
 from helper.algorithm import (
     MaximumCost,
-    MultiCost,
+    MultiCosts,
     backtracking,
     make_knn_graph_with_dummy_target,
     multicost_shortest_paths,
@@ -29,12 +30,12 @@ def load_dataframe() -> tuple[pd.DataFrame, pd.Series, pd.Series]:
     return X, y, nll
 
 
-def multi_costs_fn(X, y, nll, i, j) -> MultiCost:
+def multi_costs_fn(X, y, nll, i, j) -> MultiCosts:
     Xi = X.iloc[i]
     Xj = X.iloc[j]
     cost_1 = np.square(Xi - Xj).mean()
     cost_2 = nll.iat[j]
-    return MultiCost((MaximumCost(cost_1), MaximumCost(cost_2)))
+    return MultiCosts((MaximumCost(cost_1), MaximumCost(cost_2)))
 
 
 def get_source_targets(

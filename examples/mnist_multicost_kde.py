@@ -11,7 +11,7 @@ import typer
 from helper.algorithm import (
     AdditionCost,
     MaximumCost,
-    MultiCost,
+    MultiCosts,
     backtracking,
     make_knn_graph_with_dummy_target,
     multicost_shortest_paths,
@@ -28,12 +28,12 @@ from sklearn.neighbors import KernelDensity
 sklearn.set_config(transform_output="pandas")
 
 
-def multi_costs_fn(X: pd.DataFrame, score: list[int], i: int, j: int) -> MultiCost:
+def multi_costs_fn(X: pd.DataFrame, score: list[int], i: int, j: int) -> MultiCosts:
     a = X.iloc[i]
     b = X.iloc[j]
     l1 = score[j]
     l2 = np.linalg.norm(a - b, 2).item()
-    return MultiCost((MaximumCost(l1), AdditionCost(l2)))
+    return MultiCosts((MaximumCost(l1), AdditionCost(l2)))
 
 
 def main(verbose: bool = True) -> None:

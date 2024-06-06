@@ -2,17 +2,17 @@ import logging
 import random
 from collections.abc import Iterator, Sequence
 from concurrent.futures import ProcessPoolExecutor
-from functools import partial
+from dataclasses import dataclass
+from functools import cache
 from typing import Any, Optional
 
 import igraph as ig
 import numpy as np
 import pandas as pd
-import sklearn
 import typer
 from helper.algorithm import (
     AdditionCost,
-    MultiCost,
+    MultiCosts,
     final_costs,
     make_graph,
     multicost_shortest_paths,
@@ -21,21 +21,79 @@ from helper.dataset import ADULT_IMMUTABLES, load_adult_with_proba
 from helper.preproc import batch_loc, batch_mask, get_indices_by_sample
 
 logging.basicConfig(
-    format="{asctime} {levelname:<8} {name:<24} {message}",
+    format="{asctime} {levelname:<8} {name:<20} {message}",
     datefmt="%H:%M:%S",
     style="{",
     level=logging.DEBUG,
 )
-logger = logging.getLogger(__name__)
-sklearn.set_config(transform_output="pandas")
+logger = logging.getLogger("main")
 
 
-def multi_costs_fn(X: pd.DataFrame, cols: list[str], i: int, j: int) -> MultiCost:
-    a = X.iloc[i]
-    b = X.iloc[j]
-    return MultiCost(
-        tuple(AdditionCost(abs(b.at[c].item() - a.at[c].item())) for c in cols)
-    )
+@dataclass(repr=False, eq=False, frozen=True, slots=True)
+class MultiCostsFn:
+    X: pd.DataFrame
+    columns: list[str]
+
+    @cache
+    def __call__(self, i: int, j: int) -> MultiCosts:
+        u = self.X.loc[i]
+        v = self.X.loc[j]
+        return MultiCosts(
+            AdditionCost(abs(v.at[c] - u.at[c]).item()) for c in self.columns
+        )
+
+
+def filter_actionable_rows(
+    X: pd.DataFrame,
+    y: pd.Series,
+    index: int,
+) -> tuple[pd.DataFrame, pd.Series]:
+    X_imm = X[ADULT_IMMUTABLES]
+    mask = X_imm.eq(X_imm.loc[index], 1).all(1)
+    return batch_mask(mask, (X, y))
+
+
+def recourse_adult(
+    graph: ig.Graph,
+    *,
+    limit: int = 8,
+    key: str = "cost",
+) -> list[MultiCosts]:
+    dists = multicost_shortest_paths(graph, 0, limit, key=key, verbose=False)
+    costs = final_costs(dists)
+    return costs
+
+
+def iter_subgraph(
+    X: pd.DataFrame,
+    y: pd.Series,
+    trials: int,
+    samples: Sequence[int],
+    index: int,
+    k: Any,
+    rng: random.Random,
+) -> Iterator[ig.Graph]:
+    multi_costs_fn = MultiCostsFn(X, ["age", "education-num"])
+
+    for t in range(trials):
+        Xi = X
+        yi = y
+        for n in samples:
+            indices = get_indices_by_sample(n, Xi.index, startwith=index, rng=rng)
+            Xi, yi = batch_loc(indices, (Xi, yi))
+            targets = yi.to_numpy().nonzero()[0].tolist()
+
+            logger.info("trial #%d with %d samples and %d targets", t, n, len(targets))
+
+            yield make_graph(
+                Xi,
+                targets,
+                k,
+                cost_fn=multi_costs_fn,
+                key="cost",
+            )
+
+    logger.debug(multi_costs_fn.__call__.cache_info())
 
 
 def main(
@@ -52,26 +110,29 @@ def main(
     rng = random.Random(seed)
     samples = sorted(samples, reverse=True)
 
-    logger.info("trails=%s, samples=%s, seed=%s", trials, samples, seed)
+    logger.info(
+        "trails=%s, samples=%s, threshold=%s, seed=%s",
+        trials,
+        samples,
+        threshold,
+        seed,
+    )
 
     X_raw, y_proba = load_adult_with_proba()
-    X_raw, y_proba = filter_actionable_rows(X_raw, y_proba, index)
+    logger.info("dataset with %s rows", X_raw.shape[0])
 
-    logger.info("get %s actionable rows", X_raw.shape[0])
+    X_raw, y_proba = filter_actionable_rows(X_raw, y_proba, index)
+    logger.info("get %d actionable rows", X_raw.shape[0])
+
+    y = y_proba.gt(threshold).astype(np.int32)
+    logger.info("get %d target rows", np.count_nonzero(y.to_numpy()))
 
     X = X_raw.drop(columns=ADULT_IMMUTABLES)
-    y = y_proba.gt(threshold).astype(np.int32)
-
-    logger.info(
-        "set target threshold to %.3g, get %d targets",
-        threshold,
-        y.value_counts()[1],
-    )
 
     with ProcessPoolExecutor() as exe:
         futs = [
             exe.submit(recourse_adult, g)
-            for g in iter_subsample(X, y, trials, samples, index, k, rng)
+            for g in iter_subgraph(X, y, trials, samples, index, k, rng)
         ]
 
     res = [fut.result() for fut in futs]
@@ -91,55 +152,6 @@ def main(
     # )
 
     # df.to_csv("dataset/mnist_epsilon.csv", index=False)
-
-
-def filter_actionable_rows(
-    X: pd.DataFrame,
-    y: pd.Series,
-    index: int,
-) -> tuple[pd.DataFrame, pd.Series]:
-    X_imm = X[ADULT_IMMUTABLES]
-    mask = X_imm.eq(X_imm.loc[index], 1).all(1)
-    return batch_mask(mask, (X, y))
-
-
-def iter_subsample(
-    X: pd.DataFrame,
-    y: pd.Series,
-    trials: int,
-    samples: Sequence[int],
-    index: int,
-    k: Any,
-    rng: random.Random,
-) -> Iterator[ig.Graph]:
-    for t in range(trials):
-        Xi = X
-        yi = y
-        for n in samples:
-            indices = get_indices_by_sample(n, Xi.index, startwith=index, rng=rng)
-            Xi, yi = batch_loc(indices, (Xi, yi))
-            targets = yi.to_numpy().nonzero()[0].tolist()
-
-            logger.info("trial #%d with %d samples and %d targets", t, n, len(targets))
-
-            yield make_graph(
-                Xi,
-                targets,
-                k,
-                cost_fn=partial(multi_costs_fn, Xi, ["age", "education-num"]),
-                key="cost",
-            )
-
-
-def recourse_adult(
-    graph: ig.Graph,
-    limit: int = 8,
-    *,
-    key: str = "cost",
-) -> list[MultiCost]:
-    dists = multicost_shortest_paths(graph, 0, limit, key=key, verbose=False)
-    costs = final_costs(dists)
-    return costs
 
 
 if __name__ == "__main__":

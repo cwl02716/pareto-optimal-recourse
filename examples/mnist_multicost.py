@@ -11,7 +11,7 @@ import typer
 from helper.algorithm import (
     AdditionCost,
     MaximumCost,
-    MultiCost,
+    MultiCosts,
     backtracking,
     make_knn_graph_with_dummy_target,
     multicost_shortest_paths,
@@ -27,12 +27,12 @@ from helper.shell import run_shell
 sklearn.set_config(transform_output="pandas")
 
 
-def multi_costs_fn(X: pd.DataFrame, y: pd.Series, i: int, j: int) -> MultiCost:
+def multi_costs_fn(X: pd.DataFrame, y: pd.Series, i: int, j: int) -> MultiCosts:
     a = X.iloc[i]
     b = X.iloc[j]
     l1 = abs(y.iat[j].item() - y.iat[i].item())
     l2 = np.linalg.norm(a - b, 2).item()
-    return MultiCost((MaximumCost(l1), AdditionCost(l2)))
+    return MultiCosts((MaximumCost(l1), AdditionCost(l2)))
 
 
 def main(verbose: bool = True) -> None:
