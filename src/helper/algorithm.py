@@ -122,16 +122,19 @@ def make_graph[T](
 ) -> ig.Graph:
     adj = maker_fn(X, k).astype(np.int32)  # type: ignore
     g: ig.Graph = ig.Graph.Adjacency(adj)
-    logger.debug("G(V=%d, E=%d) | build from adj matrix", g.vcount(), g.ecount())
+
+    if g.ecount() == 0:
+        logger.warning("graph has no edges")
+        return g
 
     idx = X.index.to_list()
     g.es[key] = costs = [cost_fn(idx[u], idx[v]) for u, v in g.get_edgelist()]
-    assert costs, "empty costs"
 
     t = g.add_vertex()
     i = costs[0].identity()
     g.add_edges([(v, t) for v in targets], {key: [i] * len(targets)})
-    logger.debug("G(V=%d, E=%d) | add target vertex", g.vcount(), g.ecount())
+
+    logger.info("G(V=%d, E=%d)", g.vcount(), g.ecount())
 
     return g
 
