@@ -29,9 +29,9 @@ logging.basicConfig(
     format="{asctime} {levelname:<8} {name:<20} {message}",
     datefmt="%H:%M:%S",
     style="{",
-    level=logging.DEBUG,
+    level=logging.INFO,
 )
-logger = logging.getLogger("main")
+logger = logging.getLogger("helper")
 
 COST_CLOUMNS = ["age", "education-num"]
 
@@ -150,10 +150,14 @@ def main(
         float,
         typer.Option("-t", "--threshold", help="threshold of target probability"),
     ] = 0.75,
+    verbose: Annotated[
+        bool,
+        typer.Option("-v", "--verbose", help="set log level to debug"),
+    ] = False,
     seed: Optional[int] = None,
-    verbose: bool = False,
 ) -> None:
-    logging.getLogger().setLevel(logging.DEBUG if verbose else logging.INFO)
+    logger.setLevel(logging.DEBUG if verbose else logging.INFO)
+    logger.info("set log level to %s", logging.getLevelName(logger.level))
 
     rng = random.Random(seed)
     samples = sorted(samples, reverse=True)
