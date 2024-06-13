@@ -11,9 +11,8 @@ from typing import Any, Protocol, Self, SupportsIndex
 from warnings import warn
 
 import igraph as ig
-import numpy as np
 import pandas as pd
-from scipy import sparse
+from scipy.sparse import spmatrix
 from sklearn.neighbors import kneighbors_graph
 
 logger = logging.getLogger(__name__)
@@ -111,24 +110,21 @@ class MultiCosts(Cost):
 
 
 # intended to replace `make_knn_graph_with_dummy_target`
-def make_graph[T](
-    X: pd.DataFrame,
+def make_graph(
+    adj: spmatrix,
+    indices: Sequence[int],
     targets: Sequence[int],
-    k: T,
     *,
     key: str,
     cost_fn: Callable[[int, int], Cost],
-    maker_fn: Callable[[pd.DataFrame, T], sparse.spmatrix] = kneighbors_graph,
 ) -> ig.Graph:
-    adj = maker_fn(X, k).astype(np.int32)  # type: ignore
     g: ig.Graph = ig.Graph.Adjacency(adj)
 
     if g.ecount() == 0:
         logger.warning("graph has no edges")
         return g
 
-    idx = X.index.to_list()
-    g.es[key] = costs = [cost_fn(idx[u], idx[v]) for u, v in g.get_edgelist()]
+    g.es[key] = costs = [cost_fn(indices[u], indices[v]) for u, v in g.get_edgelist()]
 
     t = g.add_vertex()
     i = costs[0].identity()

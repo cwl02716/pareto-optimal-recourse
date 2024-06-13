@@ -1,12 +1,12 @@
 import logging
 import random
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from functools import cache, partial
 from pathlib import Path
-from typing import Annotated, Any, Optional, cast
+from typing import Annotated, Optional, cast
 
 import igraph as ig
 import numpy as np
@@ -21,7 +21,8 @@ from helper.algorithm import (
 )
 from helper.dataset import ADULT_CONTINUOUS, ADULT_IMMUTABLES, load_adult_with_proba
 from helper.preproc import batch_loc, batch_mask, get_indices_by_sample
-from sklearn.neighbors import kneighbors_graph
+from scipy.sparse import coo_matrix, csr_matrix, spmatrix
+from sklearn.neighbors import radius_neighbors_graph
 from sklearn.preprocessing import MinMaxScaler
 
 logging.basicConfig(
@@ -36,7 +37,7 @@ COST_CLOUMNS = ["age", "education-num"]
 
 
 @dataclass(repr=False, eq=False, frozen=True, slots=True)
-class MultiCostsFn:
+class MultiCostsCachedFn:
     X: pd.DataFrame
 
     @cache
@@ -59,17 +60,35 @@ def recourse_adult(
     return costs
 
 
+def make_kneighbors_within_radius(
+    kneighbors: int,
+    radius: float,
+    X: pd.DataFrame,
+) -> coo_matrix:
+    nvs = X.shape[0]
+    nes = nvs * kneighbors
+    csr_dist = cast(csr_matrix, radius_neighbors_graph(X, radius, mode="distance"))
+    csr_dist.eliminate_zeros()
+    coo_dist = csr_dist.tocoo()
+    idx = coo_dist.data.argpartition(-nes)[-nes:]
+    row = coo_dist.row[idx]
+    col = coo_dist.col[idx]
+    data = np.ones_like(row, np.int32)
+    coo_conn = coo_matrix((data, (row, col)), (nvs, nvs), np.int32)
+    return coo_conn
+
+
 def iter_subgraph(
     X: pd.DataFrame,
     y: pd.Series,
     trials: int,
     samples: Sequence[int],
     index: int,
-    k: Any,
     *,
     key: str,
     rng: random.Random,
-    multi_costs_fn: MultiCostsFn,
+    make_adj: Callable[[pd.DataFrame], spmatrix],
+    multi_costs_fn: Callable[[int, int], MultiCosts],
 ) -> Iterator[tuple[int, int, ig.Graph]]:
     for t in range(trials):
         Xi = X
@@ -85,12 +104,11 @@ def iter_subgraph(
             logger.info("trial #%d with %d samples and %d targets", t, n, n_targets)
 
             g = make_graph(
-                Xi,
+                make_adj(Xi),
+                indices,
                 targets,
-                k,
                 key=key,
                 cost_fn=multi_costs_fn,
-                maker_fn=partial(kneighbors_graph, n_jobs=-1),
             )
 
             ecount = g.ecount()
@@ -103,7 +121,8 @@ def iter_subgraph(
 
             yield t, n, g
 
-    logger.debug(multi_costs_fn.__call__.cache_info())
+    if isinstance(multi_costs_fn, MultiCostsCachedFn):
+        logger.debug(multi_costs_fn.__call__.cache_info())
 
 
 def main(
@@ -117,10 +136,20 @@ def main(
     ],
     index: Annotated[
         int,
-        typer.Option("--index", "-i", help="loc of target row"),
+        typer.Option("-i", "--index", help="loc of target row"),
     ] = 0,
-    k: int = 5,
-    threshold: float = 0.75,
+    kneighbors: Annotated[
+        int,
+        typer.Option("-k", "--kneighbors", help="k for knn"),
+    ] = 5,
+    radius: Annotated[
+        float,
+        typer.Option("-r", "--radius", help="radius for knn"),
+    ] = 0.5,
+    threshold: Annotated[
+        float,
+        typer.Option("-t", "--threshold", help="threshold of target probability"),
+    ] = 0.75,
     seed: Optional[int] = None,
     verbose: bool = False,
 ) -> None:
@@ -162,7 +191,9 @@ def main(
     y_label = y_proba.gt(threshold)
     logger.info("get %d target rows", np.count_nonzero(y_label.to_numpy()))
 
-    multi_costs_fn = MultiCostsFn(X_raw)
+    make_adj = partial(make_kneighbors_within_radius, kneighbors, radius)
+
+    multi_costs_fn = MultiCostsCachedFn(X_raw)
 
     with ProcessPoolExecutor() as exe:
         futs = {
@@ -178,9 +209,9 @@ def main(
                 trials,
                 samples,
                 index,
-                k,
                 key="cost",
                 rng=rng,
+                make_adj=make_adj,
                 multi_costs_fn=multi_costs_fn,
             )
         }
