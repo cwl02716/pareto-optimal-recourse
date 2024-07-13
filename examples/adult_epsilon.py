@@ -22,7 +22,7 @@ from helper.algorithm import (
 from helper.dataset import ADULT_CONTINUOUS, ADULT_IMMUTABLES, load_adult_with_proba
 from helper.preproc import batch_loc, batch_mask, get_indices_by_sample
 from scipy.sparse import coo_matrix, csr_matrix, spmatrix
-from sklearn.neighbors import radius_neighbors_graph
+from sklearn.neighbors import kneighbors_graph, radius_neighbors_graph
 from sklearn.preprocessing import MinMaxScaler
 
 logging.basicConfig(
@@ -76,6 +76,13 @@ def make_kneighbors_within_radius(
     data = np.ones_like(row, np.int32)
     coo_conn = coo_matrix((data, (row, col)), (nvs, nvs), np.int32)
     return coo_conn
+
+
+def make_kneighbors(kneighbors: int, X: pd.DataFrame) -> spmatrix:
+    csr_conn = cast(csr_matrix, kneighbors_graph(X, kneighbors, mode="connectivity"))
+    csr_conn.eliminate_zeros()
+    csr_conn = csr_conn.astype(np.int32)
+    return csr_conn
 
 
 def iter_subgraph(
@@ -195,7 +202,8 @@ def main(
     y_label = y_proba.gt(threshold)
     logger.info("get %d target rows", np.count_nonzero(y_label.to_numpy()))
 
-    make_adj = partial(make_kneighbors_within_radius, kneighbors, radius)
+    make_adj = partial(make_kneighbors, kneighbors)
+    # partial(make_kneighbors_within_radius, kneighbors, radius)
 
     multi_costs_fn = MultiCostsCachedFn(X_raw)
 
